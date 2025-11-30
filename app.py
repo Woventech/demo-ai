@@ -1,13 +1,18 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, GridSearchCV, cross_val_score
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.naive_bayes import MultinomialNB
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.svm import SVC
+from sklearn.pipeline import Pipeline
 from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score, roc_curve
 import matplotlib.pyplot as plt
 import seaborn as sns
 from io import StringIO
+import time
 
 # Configurazione pagina
 st.set_page_config(page_title="Classificatore Ticket Telco", layout="wide")
@@ -27,6 +32,12 @@ if 'df' not in st.session_state:
     st.session_state.df = None
 if 'metrics' not in st.session_state:
     st.session_state.metrics = {}
+if 'best_params' not in st.session_state:
+    st.session_state.best_params = {}
+if 'cv_scores' not in st.session_state:
+    st.session_state.cv_scores = {}
+if 'model_name' not in st.session_state:
+    st.session_state.model_name = None
 
 # Sidebar per navigazione
 st.sidebar.title("Navigazione")
@@ -156,31 +167,9 @@ if page == "1. Caricamento Dati":
                     "voltura utenza", "sospensione temporanea servizio",
                     "riattivazione dopo sospensione", "migrazione tecnologia",
                     "cambio profilo contrattuale", "adeguamento GDPR",
-                    "consensi privacy", "opt-out marketing",
-                    "richiesta copia contratto", "modifica clausole contrattuali",
-                    "rateizzazione costi attivazione", "conferma ordine",
-                    "cancellazione ordine", "stato lavorazione pratica",
-                    "documenti identità richiesti", "firma digitale contratto",
-                    "accettazione condizioni", "periodo di ripensamento",
-                    "diritto di recesso", "preavviso disdetta",
-                    "trasferimento contratto", "cessione linea",
-                    "subentro contrattuale", "cambio ragione sociale",
-                    "variazione sede legale", "aggiornamento PEC",
-                    "modifica IBAN addebito", "carta di credito non accettata",
-                    "domiciliazione bancaria", "pagamento anticipato",
-                    "verifica identità cliente", "procedura antiriciclaggio",
-                    "documenti contrattuali mancanti", "condizioni generali servizio",
-                    "informativa privacy incompleta", "consenso trattamento dati",
-                    "richiesta portabilità dati", "esercizio diritti GDPR",
-                    "opposizione profilazione", "cancellazione dati personali",
-                    "rettifica informazioni", "limitazione trattamento",
-                    "trasferimento numero verde", "attivazione numerazione dedicata",
-                    "richiesta numero premium", "blocco numerazione",
-                    "sblocco servizi voce", "attivazione roaming internazionale",
-                    "disattivazione servizi estero", "configurazione APN dati",
-                    "parametri configurazione modem", "credenziali accesso account",
+                    "consensi privacy", "opt-out marketing"
                 ]
-            }
+            ]
             
             categories = ['Internet'] * 50 + ['Telefonia'] * 50 + ['Fatturazione'] * 50 + ['Contratto'] * 50
             
@@ -265,19 +254,48 @@ elif page == "3. Training Modello":
     if st.session_state.df is None:
         st.warning("⚠️ Carica e prepara prima un dataset")
     else:
-        st.subheader("Configurazione Training")
+        st.subheader("Selezione Modello e Configurazione")
         
         col1, col2 = st.columns(2)
+        
         with col1:
-            test_size = st.slider("Percentuale Test Set", 10, 40, 20) / 100
+            model_type = st.selectbox(
+                "Scegli il modello:",
+                ["Logistic Regression (Raccomandato)", 
+                 "Random Forest", 
+                 "Naive Bayes",
+                 "Support Vector Machine"]
+            )
+            
+            use_grid_search = st.checkbox("Usa Grid Search per ottimizzazione", value=True)
+            
         with col2:
+            test_size = st.slider("Percentuale Test Set", 10, 40, 20) / 100
             random_state = st.number_input("Random State", 0, 100, 42)
+            cv_folds = st.slider("K-Fold Cross Validation", 3, 10, 5)
+        
+        # Parametri TF-IDF
+        st.subheader("Configurazione TF-IDF Vectorizer")
+        col3, col4, col5 = st.columns(3)
+        
+        with col3:
+            max_features = st.number_input("Max Features", 500, 5000, 2000, 500)
+        with col4:
+            ngram_min = st.number_input("N-gram Min", 1, 3, 1)
+        with col5:
+            ngram_max = st.number_input("N-gram Max", 1, 3, 2)
         
         if st.button("Avvia Training", type="primary"):
             with st.spinner("Training in corso..."):
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+                
                 df = st.session_state.df
                 
                 # Preparazione dati
+                status_text.text("📊 Preparazione dati...")
+                progress_bar.progress(10)
+                
                 X = df['descrizione']
                 y = df['categoria']
                 
@@ -287,22 +305,105 @@ elif page == "3. Training Modello":
                 )
                 
                 # Vectorization
-                vectorizer = TfidfVectorizer(max_features=1000, ngram_range=(1, 2))
+                status_text.text("🔤 Vectorizzazione testo...")
+                progress_bar.progress(20)
+                
+                vectorizer = TfidfVectorizer(
+                    max_features=max_features, 
+                    ngram_range=(ngram_min, ngram_max),
+                    min_df=2,
+                    max_df=0.8
+                )
                 X_train_vec = vectorizer.fit_transform(X_train)
                 X_test_vec = vectorizer.transform(X_test)
                 
-                # Training
-                model = MultinomialNB()
-                model.fit(X_train_vec, y_train)
+                # Selezione modello e parametri
+                status_text.text(f"🎯 Training {model_type}...")
+                progress_bar.progress(30)
+                
+                if model_type == "Logistic Regression (Raccomandato)":
+                    if use_grid_search:
+                        param_grid = {
+                            'C': [0.1, 1, 10, 100],
+                            'penalty': ['l2'],
+                            'solver': ['lbfgs', 'liblinear'],
+                            'max_iter': [200, 500]
+                        }
+                        base_model = LogisticRegression(random_state=random_state)
+                    else:
+                        model = LogisticRegression(C=10, max_iter=500, random_state=random_state)
+                        
+                elif model_type == "Random Forest":
+                    if use_grid_search:
+                        param_grid = {
+                            'n_estimators': [100, 200, 300],
+                            'max_depth': [10, 20, None],
+                            'min_samples_split': [2, 5],
+                            'min_samples_leaf': [1, 2]
+                        }
+                        base_model = RandomForestClassifier(random_state=random_state)
+                    else:
+                        model = RandomForestClassifier(n_estimators=200, max_depth=20, 
+                                                      random_state=random_state)
+                        
+                elif model_type == "Naive Bayes":
+                    if use_grid_search:
+                        param_grid = {
+                            'alpha': [0.1, 0.5, 1.0, 2.0]
+                        }
+                        base_model = MultinomialNB()
+                    else:
+                        model = MultinomialNB(alpha=1.0)
+                        
+                else:  # SVM
+                    if use_grid_search:
+                        param_grid = {
+                            'C': [0.1, 1, 10],
+                            'kernel': ['linear', 'rbf'],
+                            'gamma': ['scale', 'auto']
+                        }
+                        base_model = SVC(probability=True, random_state=random_state)
+                    else:
+                        model = SVC(C=10, kernel='rbf', probability=True, random_state=random_state)
+                
+                # Grid Search
+                if use_grid_search:
+                    status_text.text(f"🔍 Grid Search in corso (può richiedere tempo)...")
+                    progress_bar.progress(40)
+                    
+                    grid_search = GridSearchCV(
+                        base_model, param_grid, cv=cv_folds, 
+                        scoring='accuracy', n_jobs=-1, verbose=0
+                    )
+                    grid_search.fit(X_train_vec, y_train)
+                    model = grid_search.best_estimator_
+                    st.session_state.best_params = grid_search.best_params_
+                    
+                    progress_bar.progress(70)
+                else:
+                    model.fit(X_train_vec, y_train)
+                    st.session_state.best_params = {}
+                    progress_bar.progress(70)
+                
+                # Cross Validation
+                status_text.text("📈 Cross Validation...")
+                cv_scores = cross_val_score(model, X_train_vec, y_train, cv=cv_folds, scoring='accuracy')
+                st.session_state.cv_scores = cv_scores
+                
+                progress_bar.progress(85)
                 
                 # Predizioni
+                status_text.text("🎲 Generazione predizioni...")
                 y_pred = model.predict(X_test_vec)
                 y_pred_proba = model.predict_proba(X_test_vec)
+                
+                progress_bar.progress(95)
                 
                 # Salvataggio in session state
                 st.session_state.model = model
                 st.session_state.vectorizer = vectorizer
                 st.session_state.categories = model.classes_
+                st.session_state.model_name = model_type
                 st.session_state.metrics = {
                     'X_test': X_test,
                     'y_test': y_test,
@@ -311,11 +412,41 @@ elif page == "3. Training Modello":
                     'report': classification_report(y_test, y_pred, output_dict=True)
                 }
                 
-                st.success("✅ Training completato!")
+                progress_bar.progress(100)
+                status_text.text("✅ Training completato!")
                 
-                # Mostra accuracy
+                time.sleep(0.5)
+                progress_bar.empty()
+                status_text.empty()
+                
+                # Risultati
+                st.success(f"✅ Training completato con {model_type}!")
+                
+                col_res1, col_res2, col_res3 = st.columns(3)
+                
                 accuracy = st.session_state.metrics['report']['accuracy']
-                st.metric("Accuracy", f"{accuracy:.2%}")
+                with col_res1:
+                    st.metric("Accuracy", f"{accuracy:.2%}")
+                with col_res2:
+                    st.metric("CV Score Mean", f"{cv_scores.mean():.2%}")
+                with col_res3:
+                    st.metric("CV Score Std", f"{cv_scores.std():.3f}")
+                
+                if use_grid_search and st.session_state.best_params:
+                    st.subheader("🎯 Migliori Parametri (Grid Search)")
+                    st.json(st.session_state.best_params)
+                
+                # CV Scores
+                st.subheader("📊 Cross Validation Scores")
+                fig_cv, ax_cv = plt.subplots(figsize=(10, 4))
+                ax_cv.plot(range(1, len(cv_scores) + 1), cv_scores, marker='o', linewidth=2)
+                ax_cv.axhline(y=cv_scores.mean(), color='r', linestyle='--', label=f'Mean: {cv_scores.mean():.3f}')
+                ax_cv.set_xlabel('Fold')
+                ax_cv.set_ylabel('Accuracy')
+                ax_cv.set_title('Cross Validation Scores per Fold')
+                ax_cv.legend()
+                ax_cv.grid(True, alpha=0.3)
+                st.pyplot(fig_cv)
 
 # Pagina 4: Valutazione
 elif page == "4. Valutazione":
@@ -326,23 +457,48 @@ elif page == "4. Valutazione":
     else:
         metrics = st.session_state.metrics
         
+        # Info modello
+        st.info(f"🎯 Modello Utilizzato: **{st.session_state.model_name}**")
+        
         # Metriche generali
         st.subheader("Metriche di Performance")
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4)
         
         report = metrics['report']
         with col1:
             st.metric("Accuracy", f"{report['accuracy']:.2%}")
         with col2:
-            st.metric("Macro Avg F1", f"{report['macro avg']['f1-score']:.2%}")
+            st.metric("Precision (Macro)", f"{report['macro avg']['precision']:.2%}")
         with col3:
-            st.metric("Weighted Avg F1", f"{report['weighted avg']['f1-score']:.2%}")
+            st.metric("Recall (Macro)", f"{report['macro avg']['recall']:.2%}")
+        with col4:
+            st.metric("F1-Score (Macro)", f"{report['macro avg']['f1-score']:.2%}")
+        
+        # CV Scores
+        if st.session_state.cv_scores is not None and len(st.session_state.cv_scores) > 0:
+            cv_scores = st.session_state.cv_scores
+            st.subheader("Cross Validation")
+            col_cv1, col_cv2 = st.columns(2)
+            with col_cv1:
+                st.metric("CV Mean Score", f"{cv_scores.mean():.2%}")
+            with col_cv2:
+                st.metric("CV Std Dev", f"{cv_scores.std():.4f}")
+        
+        # Best Params
+        if st.session_state.best_params:
+            with st.expander("🔧 Parametri Ottimizzati (Grid Search)"):
+                st.json(st.session_state.best_params)
         
         # Report dettagliato
-        st.subheader("Classification Report")
+        st.subheader("Classification Report Dettagliato")
         report_df = pd.DataFrame(report).transpose()
-        report_df = report_df.drop(['accuracy', 'macro avg', 'weighted avg'])
-        st.dataframe(report_df.style.format("{:.2%}"))
+        report_df = report_df.drop(['accuracy'])
+        
+        # Formatta e colora
+        styled_report = report_df.style.format("{:.3f}").background_gradient(
+            cmap='RdYlGn', subset=['precision', 'recall', 'f1-score'], vmin=0.5, vmax=1.0
+        )
+        st.dataframe(styled_report, use_container_width=True)
         
         # Confusion Matrix
         st.subheader("Confusion Matrix")
@@ -351,34 +507,96 @@ elif page == "4. Valutazione":
         fig, ax = plt.subplots(figsize=(10, 8))
         sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
                     xticklabels=st.session_state.categories,
-                    yticklabels=st.session_state.categories, ax=ax)
-        ax.set_title("Confusion Matrix")
-        ax.set_ylabel("Vera Categoria")
-        ax.set_xlabel("Categoria Predetta")
+                    yticklabels=st.session_state.categories, ax=ax,
+                    cbar_kws={'label': 'Numero di Predizioni'})
+        ax.set_title("Confusion Matrix", fontsize=16, fontweight='bold')
+        ax.set_ylabel("Vera Categoria", fontsize=12)
+        ax.set_xlabel("Categoria Predetta", fontsize=12)
+        plt.tight_layout()
         st.pyplot(fig)
         
-        # ROC Curve (per classificazione multi-classe)
-        st.subheader("ROC Curves")
+        # Normalized Confusion Matrix
+        st.subheader("Confusion Matrix Normalizzata")
+        cm_normalized = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+        
+        fig2, ax2 = plt.subplots(figsize=(10, 8))
+        sns.heatmap(cm_normalized, annot=True, fmt='.2%', cmap='YlOrRd', 
+                    xticklabels=st.session_state.categories,
+                    yticklabels=st.session_state.categories, ax=ax2,
+                    cbar_kws={'label': 'Percentuale'})
+        ax2.set_title("Confusion Matrix Normalizzata", fontsize=16, fontweight='bold')
+        ax2.set_ylabel("Vera Categoria", fontsize=12)
+        ax2.set_xlabel("Categoria Predetta", fontsize=12)
+        plt.tight_layout()
+        st.pyplot(fig2)
+        
+        # ROC Curve
+        st.subheader("ROC Curves (One-vs-Rest)")
         from sklearn.preprocessing import label_binarize
         
         y_test_bin = label_binarize(metrics['y_test'], 
                                      classes=st.session_state.categories)
         
-        fig, ax = plt.subplots(figsize=(10, 8))
-        for i, category in enumerate(st.session_state.categories):
+        fig3, ax3 = plt.subplots(figsize=(12, 8))
+        colors = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12']
+        
+        for i, (category, color) in enumerate(zip(st.session_state.categories, colors)):
             fpr, tpr, _ = roc_curve(y_test_bin[:, i], 
                                     metrics['y_pred_proba'][:, i])
             auc = roc_auc_score(y_test_bin[:, i], 
                                metrics['y_pred_proba'][:, i])
-            ax.plot(fpr, tpr, label=f'{category} (AUC = {auc:.2f})')
+            ax3.plot(fpr, tpr, color=color, linewidth=2.5, 
+                    label=f'{category} (AUC = {auc:.3f})')
         
-        ax.plot([0, 1], [0, 1], 'k--', label='Random')
-        ax.set_xlabel('False Positive Rate')
-        ax.set_ylabel('True Positive Rate')
-        ax.set_title('ROC Curves per Categoria')
-        ax.legend()
-        ax.grid(True, alpha=0.3)
-        st.pyplot(fig)
+        ax3.plot([0, 1], [0, 1], 'k--', linewidth=2, label='Random Classifier')
+        ax3.set_xlabel('False Positive Rate', fontsize=12)
+        ax3.set_ylabel('True Positive Rate', fontsize=12)
+        ax3.set_title('ROC Curves per Categoria', fontsize=16, fontweight='bold')
+        ax3.legend(loc='lower right', fontsize=10)
+        ax3.grid(True, alpha=0.3)
+        plt.tight_layout()
+        st.pyplot(fig3)
+        
+        # Feature Importance (solo per modelli che lo supportano)
+        if hasattr(st.session_state.model, 'feature_importances_'):
+            st.subheader("🔍 Feature Importance (Top 20)")
+            
+            feature_names = st.session_state.vectorizer.get_feature_names_out()
+            importances = st.session_state.model.feature_importances_
+            
+            indices = np.argsort(importances)[::-1][:20]
+            top_features = [(feature_names[i], importances[i]) for i in indices]
+            
+            fig4, ax4 = plt.subplots(figsize=(10, 8))
+            features_df = pd.DataFrame(top_features, columns=['Feature', 'Importance'])
+            ax4.barh(features_df['Feature'], features_df['Importance'], color='#3498db')
+            ax4.set_xlabel('Importance')
+            ax4.set_title('Top 20 Features più Importanti')
+            ax4.invert_yaxis()
+            plt.tight_layout()
+            st.pyplot(fig4)
+        
+        elif hasattr(st.session_state.model, 'coef_'):
+            st.subheader("🔍 Feature Importance (Top 10 per Categoria)")
+            
+            feature_names = st.session_state.vectorizer.get_feature_names_out()
+            
+            for i, category in enumerate(st.session_state.categories):
+                coef = st.session_state.model.coef_[i]
+                top_indices = np.argsort(np.abs(coef))[::-1][:10]
+                
+                with st.expander(f"📊 {category}"):
+                    top_features = [(feature_names[idx], coef[idx]) for idx in top_indices]
+                    features_df = pd.DataFrame(top_features, columns=['Feature', 'Coefficient'])
+                    
+                    fig5, ax5 = plt.subplots(figsize=(8, 5))
+                    colors = ['#2ecc71' if x > 0 else '#e74c3c' for x in features_df['Coefficient']]
+                    ax5.barh(features_df['Feature'], features_df['Coefficient'], color=colors)
+                    ax5.set_xlabel('Coefficient')
+                    ax5.set_title(f'Top 10 Features per {category}')
+                    ax5.invert_yaxis()
+                    plt.tight_layout()
+                    st.pyplot(fig5)
 
 # Pagina 5: Classificazione
 elif page == "5. Classificazione":
@@ -387,6 +605,7 @@ elif page == "5. Classificazione":
     if st.session_state.model is None:
         st.warning("⚠️ Effettua prima il training del modello")
     else:
+        st.write(f"**Modello Attivo:** {st.session_state.model_name}")
         st.write("Inserisci la descrizione di un ticket per ottenere la classificazione automatica")
         
         # Input utente
@@ -396,7 +615,16 @@ elif page == "5. Classificazione":
             height=100
         )
         
-        if st.button("Classifica Ticket", type="primary"):
+        col_btn1, col_btn2 = st.columns([1, 4])
+        with col_btn1:
+            classify_btn = st.button("Classifica Ticket", type="primary", use_container_width=True)
+        with col_btn2:
+            clear_btn = st.button("Pulisci", use_container_width=True)
+        
+        if clear_btn:
+            st.rerun()
+        
+        if classify_btn:
             if user_input.strip():
                 # Preprocessing
                 input_processed = user_input.lower().strip()
@@ -409,7 +637,15 @@ elif page == "5. Classificazione":
                 probabilities = st.session_state.model.predict_proba(input_vec)[0]
                 
                 # Risultati
-                st.success(f"### Categoria Predetta: **{prediction}**")
+                max_prob = probabilities.max()
+                
+                # Colore basato sulla confidenza
+                if max_prob >= 0.8:
+                    st.success(f"### ✅ Categoria Predetta: **{prediction}** (Confidenza: {max_prob:.1%})")
+                elif max_prob >= 0.6:
+                    st.info(f"### ℹ️ Categoria Predetta: **{prediction}** (Confidenza: {max_prob:.1%})")
+                else:
+                    st.warning(f"### ⚠️ Categoria Predetta: **{prediction}** (Confidenza bassa: {max_prob:.1%})")
                 
                 # Probabilità
                 st.subheader("Confidenza per Categoria")
@@ -418,32 +654,55 @@ elif page == "5. Classificazione":
                     'Probabilità': probabilities
                 }).sort_values('Probabilità', ascending=False)
                 
-                fig, ax = plt.subplots(figsize=(10, 5))
+                # Grafico probabilità
+                fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+                
+                # Grafico a barre
                 colors = ['#2ecc71' if cat == prediction else '#3498db' 
                          for cat in prob_df['Categoria']]
-                ax.barh(prob_df['Categoria'], prob_df['Probabilità'], color=colors)
-                ax.set_xlabel('Probabilità')
-                ax.set_title('Distribuzione Probabilità')
-                ax.set_xlim(0, 1)
+                ax1.barh(prob_df['Categoria'], prob_df['Probabilità'], color=colors)
+                ax1.set_xlabel('Probabilità', fontsize=11)
+                ax1.set_title('Distribuzione Probabilità', fontsize=13, fontweight='bold')
+                ax1.set_xlim(0, 1)
                 for i, v in enumerate(prob_df['Probabilità']):
-                    ax.text(v + 0.01, i, f'{v:.1%}', va='center')
+                    ax1.text(v + 0.01, i, f'{v:.1%}', va='center', fontsize=10)
+                
+                # Grafico a torta
+                ax2.pie(prob_df['Probabilità'], labels=prob_df['Categoria'], 
+                       autopct='%1.1f%%', startangle=90, colors=colors)
+                ax2.set_title('Proporzione Probabilità', fontsize=13, fontweight='bold')
+                
+                plt.tight_layout()
                 st.pyplot(fig)
                 
                 # Tabella probabilità
                 st.dataframe(
                     prob_df.style.format({'Probabilità': '{:.2%}'})
                     .background_gradient(cmap='Greens', subset=['Probabilità'])
+                    .set_properties(**{'text-align': 'left'}),
+                    use_container_width=True
                 )
+                
+                # Raccomandazioni
+                st.subheader("💡 Raccomandazioni")
+                if max_prob >= 0.8:
+                    st.success("✅ Alta confidenza - Classificazione affidabile")
+                elif max_prob >= 0.6:
+                    st.info("ℹ️ Confidenza media - Verificare eventualmente con operatore")
+                else:
+                    st.warning("⚠️ Bassa confidenza - Richiede revisione manuale")
+                    st.write("Probabile ticket ambiguo o appartenente a categorie multiple")
+                
             else:
                 st.error("⚠️ Inserisci una descrizione del ticket")
         
         # Esempi
-        st.subheader("💡 Esempi di Test")
+        st.subheader("💡 Esempi di Test Rapido")
         esempi = {
-            "Internet lento": "la mia connessione è lentissima non riesco a lavorare",
-            "Problema telefono": "non riesco a fare chiamate la linea è morta",
-            "Fattura errata": "ho ricevuto una bolletta con costi non dovuti",
-            "Attivazione": "vorrei attivare una nuova linea fibra"
+            "🌐 Internet lento": "la mia connessione è lentissima non riesco a lavorare da casa",
+            "📞 Problema telefono": "non riesco a fare chiamate la linea è completamente morta",
+            "💰 Fattura errata": "ho ricevuto una bolletta con costi non dovuti e doppi addebiti",
+            "📋 Attivazione": "vorrei attivare una nuova linea fibra e portare il mio numero"
         }
         
         cols = st.columns(len(esempi))
@@ -454,8 +713,13 @@ elif page == "5. Classificazione":
                     st.rerun()
         
         if 'esempio_selezionato' in st.session_state:
-            st.info(f"Esempio selezionato: {st.session_state.esempio_selezionato}")
+            st.info(f"📝 Esempio selezionato: {st.session_state.esempio_selezionato}")
 
 # Footer
 st.markdown("---")
-st.markdown("**Sistema di Classificazione Ticket Telco** | Powered by Machine Learning")
+st.markdown("""
+<div style='text-align: center; color: #7f8c8d;'>
+    <p><strong>Sistema di Classificazione Ticket Telco</strong> | Powered by Machine Learning</p>
+    <p>Modelli: Logistic Regression • Random Forest • Naive Bayes • SVM</p>
+</div>
+""", unsafe_allow_html=True)
