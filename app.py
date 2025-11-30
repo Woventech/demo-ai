@@ -180,7 +180,7 @@ if page == "1. Caricamento Dati":
                     "disattivazione servizi estero", "configurazione APN dati",
                     "parametri configurazione modem", "credenziali accesso account",
                 ]
-            ]
+            }
             
             categories = ['Internet'] * 50 + ['Telefonia'] * 50 + ['Fatturazione'] * 50 + ['Contratto'] * 50
             
