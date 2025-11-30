@@ -105,7 +105,7 @@ if page == "1. Caricamento Dati":
                     "authentication VoIP fallita", "RTP stream interrotto",
                 ] + [
                     # Fatturazione (50)
-                    "addebito non corretto sulla fattura", "importo fattura sbagliato",
+                    "addebito non corretto sulla fattura", "importo fattura sbagliato","pagamento non riuscito", "non riesco a pagare",
                     "costo superiore al previsto", "servizi non richiesti in fattura",
                     "doppio addebito", "fattura non arrivata",
                     "richiesta rimborso", "promozione non applicata",
@@ -160,7 +160,7 @@ if page == "1. Caricamento Dati":
                 ]
             }
             
-            categories = ['Internet'] * 50 + ['Telefonia'] * 50 + ['Fatturazione'] * 50 + ['Contratto'] * 50
+            categories = ['Internet'] * 50 + ['Telefonia'] * 50 + ['Fatturazione'] * 52 + ['Contratto'] * 50
             
             data['categoria'] = categories
             
