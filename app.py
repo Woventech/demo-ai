@@ -157,8 +157,30 @@ if page == "1. Caricamento Dati":
                     "riattivazione dopo sospensione", "migrazione tecnologia",
                     "cambio profilo contrattuale", "adeguamento GDPR",
                     "consensi privacy", "opt-out marketing",
+                    "richiesta copia contratto", "modifica clausole contrattuali",
+                    "rateizzazione costi attivazione", "conferma ordine",
+                    "cancellazione ordine", "stato lavorazione pratica",
+                    "documenti identità richiesti", "firma digitale contratto",
+                    "accettazione condizioni", "periodo di ripensamento",
+                    "diritto di recesso", "preavviso disdetta",
+                    "trasferimento contratto", "cessione linea",
+                    "subentro contrattuale", "cambio ragione sociale",
+                    "variazione sede legale", "aggiornamento PEC",
+                    "modifica IBAN addebito", "carta di credito non accettata",
+                    "domiciliazione bancaria", "pagamento anticipato",
+                    "verifica identità cliente", "procedura antiriciclaggio",
+                    "documenti contrattuali mancanti", "condizioni generali servizio",
+                    "informativa privacy incompleta", "consenso trattamento dati",
+                    "richiesta portabilità dati", "esercizio diritti GDPR",
+                    "opposizione profilazione", "cancellazione dati personali",
+                    "rettifica informazioni", "limitazione trattamento",
+                    "trasferimento numero verde", "attivazione numerazione dedicata",
+                    "richiesta numero premium", "blocco numerazione",
+                    "sblocco servizi voce", "attivazione roaming internazionale",
+                    "disattivazione servizi estero", "configurazione APN dati",
+                    "parametri configurazione modem", "credenziali accesso account",
                 ]
-            }
+            ]
             
             categories = ['Internet'] * 50 + ['Telefonia'] * 50 + ['Fatturazione'] * 50 + ['Contratto'] * 50
             
