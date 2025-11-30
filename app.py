@@ -169,7 +169,7 @@ if page == "1. Caricamento Dati":
                     "cambio profilo contrattuale", "adeguamento GDPR",
                     "consensi privacy", "opt-out marketing"
                 ]
-            ]
+            }
             
             categories = ['Internet'] * 50 + ['Telefonia'] * 50 + ['Fatturazione'] * 50 + ['Contratto'] * 50
             
