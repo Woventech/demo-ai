@@ -169,12 +169,9 @@ if page == "1. Caricamento Dati":
                     "riattivazione dopo sospensione", "migrazione tecnologia",
                     "cambio profilo contrattuale", "adeguamento GDPR",
                     "consensi privacy", "opt-out marketing"
-                ]
+                ],
+                'categoria': ['Internet'] * 50 + ['Telefonia'] * 50 + ['Fatturazione'] * 50 + ['Contratto'] * 50
             }
-            
-            categories = ['Internet'] * 50 + ['Telefonia'] * 50 + ['Fatturazione'] * 50 + ['Contratto'] * 50
-            
-            data['categoria'] = categories
             
             st.session_state.df = pd.DataFrame(data)
             st.success("✅ Dataset di esempio generato!")
@@ -219,13 +216,14 @@ elif page == "2. Pulizia e Preparazione":
         # Distribuzione categorie
         if 'categoria' in st.session_state.df.columns:
             st.subheader("Distribuzione Categorie")
-            fig, ax = plt.subplots(figsize=(10, 5))
+            fig, ax = plt.subplots(figsize=(8, 4))
             st.session_state.df['categoria'].value_counts().plot(kind='bar', ax=ax)
             ax.set_title("Distribuzione Ticket per Categoria")
             ax.set_xlabel("Categoria")
             ax.set_ylabel("Numero Ticket")
             plt.xticks(rotation=45)
-            st.pyplot(fig)
+            plt.tight_layout()
+            st.pyplot(fig, use_container_width=False)
         
         # Pulizia dati
         if st.button("Pulisci e Prepara Dati"):
@@ -439,7 +437,7 @@ elif page == "3. Training Modello":
                 
                 # CV Scores
                 st.subheader("📊 Cross Validation Scores")
-                fig_cv, ax_cv = plt.subplots(figsize=(10, 4))
+                fig_cv, ax_cv = plt.subplots(figsize=(8, 3))
                 ax_cv.plot(range(1, len(cv_scores) + 1), cv_scores, marker='o', linewidth=2)
                 ax_cv.axhline(y=cv_scores.mean(), color='r', linestyle='--', label=f'Mean: {cv_scores.mean():.3f}')
                 ax_cv.set_xlabel('Fold')
@@ -447,7 +445,8 @@ elif page == "3. Training Modello":
                 ax_cv.set_title('Cross Validation Scores per Fold')
                 ax_cv.legend()
                 ax_cv.grid(True, alpha=0.3)
-                st.pyplot(fig_cv)
+                plt.tight_layout()
+                st.pyplot(fig_cv, use_container_width=False)
 
 # Pagina 4: Valutazione
 elif page == "4. Valutazione":
