@@ -46,7 +46,8 @@ page = st.sidebar.radio("Seleziona fase:",
                          "2. Pulizia e Preparazione", 
                          "3. Training Modello", 
                          "4. Valutazione", 
-                         "5. Classificazione"])
+                         "5. TF-IDF Explorer",
+                         "6. Classificazione"])
 
 # Pagina 1: Caricamento Dati
 if page == "1. Caricamento Dati":
@@ -598,8 +599,212 @@ elif page == "4. Valutazione":
                     plt.tight_layout()
                     st.pyplot(fig5)
 
-# Pagina 5: Classificazione
-elif page == "5. Classificazione":
+# Pagina 5: TF-IDF Explorer
+elif page == "5. TF-IDF Explorer":
+    st.header("🔍 TF-IDF Explorer - Visualizza la Trasformazione del Testo")
+    
+    if st.session_state.vectorizer is None:
+        st.warning("⚠️ Effettua prima il training del modello per avere un vectorizer")
+    else:
+        st.info("👁️ Qui puoi vedere esattamente come il TF-IDF Vectorizer trasforma il testo in numeri")
+        
+        # Input di esempio
+        st.subheader("📝 Inserisci un Testo da Analizzare")
+        example_text = st.text_area(
+            "Testo di esempio:",
+            value="la mia connessione internet è molto lenta e si disconnette spesso",
+            height=100
+        )
+        
+        if st.button("Analizza Trasformazione", type="primary"):
+            # Trasformazione
+            text_vectorized = st.session_state.vectorizer.transform([example_text])
+            feature_names = st.session_state.vectorizer.get_feature_names_out()
+            
+            # Ottieni valori non-zero
+            dense_vector = text_vectorized.toarray()[0]
+            non_zero_indices = dense_vector.nonzero()[0]
+            
+            st.success(f"✅ Testo trasformato in un vettore di {len(feature_names)} dimensioni")
+            
+            # Statistiche
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Dimensioni Totali", f"{len(feature_names):,}")
+            with col2:
+                st.metric("Features Attive", len(non_zero_indices))
+            with col3:
+                st.metric("Sparsità", f"{(1 - len(non_zero_indices)/len(feature_names))*100:.1f}%")
+            with col4:
+                max_value = dense_vector.max() if len(non_zero_indices) > 0 else 0
+                st.metric("Max TF-IDF", f"{max_value:.4f}")
+            
+            # Tabella features attive
+            if len(non_zero_indices) > 0:
+                st.subheader("🎯 Features Estratte e loro Punteggi TF-IDF")
+                
+                features_data = []
+                for idx in non_zero_indices:
+                    features_data.append({
+                        'Feature (n-gram)': feature_names[idx],
+                        'TF-IDF Score': dense_vector[idx],
+                        'Posizione nel Vettore': idx
+                    })
+                
+                features_df = pd.DataFrame(features_data).sort_values('TF-IDF Score', ascending=False)
+                
+                # Visualizzazione tabella
+                st.dataframe(
+                    features_df.style.format({'TF-IDF Score': '{:.6f}'})
+                    .background_gradient(cmap='YlGn', subset=['TF-IDF Score']),
+                    use_container_width=True
+                )
+                
+                # Grafico a barre
+                st.subheader("📊 Visualizzazione Punteggi TF-IDF")
+                fig, ax = plt.subplots(figsize=(12, max(6, len(features_df) * 0.3)))
+                
+                colors = plt.cm.viridis(features_df['TF-IDF Score'] / features_df['TF-IDF Score'].max())
+                ax.barh(features_df['Feature (n-gram)'], features_df['TF-IDF Score'], color=colors)
+                ax.set_xlabel('TF-IDF Score', fontsize=11)
+                ax.set_title('Importanza delle Features Estratte', fontsize=13, fontweight='bold')
+                ax.invert_yaxis()
+                
+                # Aggiungi valori
+                for i, (idx, row) in enumerate(features_df.iterrows()):
+                    ax.text(row['TF-IDF Score'], i, f" {row['TF-IDF Score']:.4f}", 
+                           va='center', fontsize=9)
+                
+                plt.tight_layout()
+                st.pyplot(fig)
+                
+                # Spiegazione
+                with st.expander("📖 Come Interpretare i Risultati"):
+                    st.markdown("""
+                    ### Cosa Significano i Punteggi TF-IDF?
+                    
+                    **TF-IDF** = Term Frequency × Inverse Document Frequency
+                    
+                    - **Punteggio Alto (>0.3)**: La parola/frase è:
+                      - Frequente in QUESTO ticket
+                      - Rara nel resto del dataset
+                      - Quindi molto **distintiva e importante**
+                    
+                    - **Punteggio Medio (0.1-0.3)**: 
+                      - Parola/frase abbastanza caratteristica
+                      - Contribuisce alla classificazione
+                    
+                    - **Punteggio Basso (<0.1)**:
+                      - Parola comune in molti ticket
+                      - Meno utile per la classificazione
+                    
+                    ### Esempio Pratico:
+                    - "**internet lento**" → Alto TF-IDF → distintivo per categoria Internet
+                    - "**problema**" → Basso TF-IDF → comune in tutte le categorie
+                    """)
+                
+            else:
+                st.warning("⚠️ Nessuna feature rilevante trovata nel testo")
+        
+        # Visualizzazione vocabolario completo
+        st.markdown("---")
+        st.subheader("📚 Esplora il Vocabolario Completo del Vectorizer")
+        
+        col_vocab1, col_vocab2 = st.columns([1, 2])
+        
+        with col_vocab1:
+            vocab_filter = st.text_input("🔎 Cerca nel vocabolario:", placeholder="es: internet")
+            show_top_n = st.slider("Mostra top N features", 10, 100, 50, 10)
+        
+        feature_names = st.session_state.vectorizer.get_feature_names_out()
+        
+        # Filtra se c'è una ricerca
+        if vocab_filter:
+            filtered_features = [f for f in feature_names if vocab_filter.lower() in f]
+            st.info(f"Trovate {len(filtered_features)} features contenenti '{vocab_filter}'")
+            
+            if filtered_features:
+                vocab_df = pd.DataFrame({
+                    'Feature': filtered_features[:show_top_n],
+                    'Indice': [np.where(feature_names == f)[0][0] for f in filtered_features[:show_top_n]]
+                })
+                st.dataframe(vocab_df, use_container_width=True)
+            else:
+                st.warning("Nessuna feature trovata con questo filtro")
+        else:
+            # Mostra sample random
+            st.info(f"Vocabolario totale: {len(feature_names)} features")
+            
+            sample_indices = np.random.choice(len(feature_names), min(show_top_n, len(feature_names)), replace=False)
+            vocab_df = pd.DataFrame({
+                'Feature': feature_names[sample_indices],
+                'Indice': sample_indices
+            })
+            st.dataframe(vocab_df, use_container_width=True)
+        
+        # Statistiche N-grams
+        st.markdown("---")
+        st.subheader("📊 Statistiche N-grams nel Vocabolario")
+        
+        unigrams = [f for f in feature_names if ' ' not in f]
+        bigrams = [f for f in feature_names if f.count(' ') == 1]
+        trigrams = [f for f in feature_names if f.count(' ') == 2]
+        
+        col_ng1, col_ng2, col_ng3 = st.columns(3)
+        
+        with col_ng1:
+            st.metric("Unigrams (1 parola)", f"{len(unigrams):,}", 
+                     help="Parole singole: 'internet', 'lento', ecc.")
+        with col_ng2:
+            st.metric("Bigrams (2 parole)", f"{len(bigrams):,}",
+                     help="Coppie di parole: 'internet lento', 'connessione wifi', ecc.")
+        with col_ng3:
+            st.metric("Trigrams (3 parole)", f"{len(trigrams):,}",
+                     help="Triple di parole: 'internet molto lento', ecc.")
+        
+        # Grafico distribuzione
+        fig_dist, ax_dist = plt.subplots(figsize=(10, 5))
+        ngram_counts = [len(unigrams), len(bigrams), len(trigrams)]
+        ngram_labels = ['Unigrams\n(1 parola)', 'Bigrams\n(2 parole)', 'Trigrams\n(3 parole)']
+        colors_ng = ['#3498db', '#2ecc71', '#e74c3c']
+        
+        bars = ax_dist.bar(ngram_labels, ngram_counts, color=colors_ng, alpha=0.7, edgecolor='black')
+        ax_dist.set_ylabel('Numero di Features', fontsize=11)
+        ax_dist.set_title('Distribuzione N-grams nel Vocabolario', fontsize=13, fontweight='bold')
+        
+        # Aggiungi valori sopra le barre
+        for bar, count in zip(bars, ngram_counts):
+            height = bar.get_height()
+            ax_dist.text(bar.get_x() + bar.get_width()/2., height,
+                        f'{count:,}', ha='center', va='bottom', fontsize=11, fontweight='bold')
+        
+        plt.tight_layout()
+        st.pyplot(fig_dist)
+        
+        # Esempi di ogni tipo
+        with st.expander("👀 Visualizza Esempi di N-grams"):
+            col_ex1, col_ex2, col_ex3 = st.columns(3)
+            
+            with col_ex1:
+                st.markdown("**Esempi Unigrams:**")
+                for uni in unigrams[:10]:
+                    st.code(uni, language=None)
+            
+            with col_ex2:
+                st.markdown("**Esempi Bigrams:**")
+                for bi in bigrams[:10]:
+                    st.code(bi, language=None)
+            
+            with col_ex3:
+                st.markdown("**Esempi Trigrams:**")
+                if trigrams:
+                    for tri in trigrams[:10]:
+                        st.code(tri, language=None)
+                else:
+                    st.info("Nessun trigram nel modello")
+
+# Pagina 6: Classificazione
+elif page == "6. Classificazione":
     st.header("🎯 Classificazione Nuovo Ticket")
     
     if st.session_state.model is None:
