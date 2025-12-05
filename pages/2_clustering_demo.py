@@ -79,34 +79,67 @@ if page == "1️⃣ Caricamento Dati":
 # 2. PULIZIA E PREPARAZIONE
 # ----------------------------------------------------------
 elif page == "2️⃣ Pulizia & Feature Engineering":
-    st.header("🧹 2. Pulizia e Preparazione Dati")
+    st.header("🧹 Pulizia e Preparazione Dati")
 
-    if st.session_state.data is None:
-        st.warning("⚠ Prima carica un dataset!")
+if "raw_data" not in st.session_state:
+    st.warning("Carica prima un dataset dalla sezione precedente.")
+else:
+    data = st.session_state["raw_data"].copy()
+
+    st.subheader("🔍 Colonne disponibili")
+    st.write(list(data.columns))
+
+    # ----------------------------------------------------------
+    # 1. Selezione automatica colonne numeriche e categoriche
+    # ----------------------------------------------------------
+    categorical_cols = [
+        "gender", "Partner", "Dependents", "PhoneService", "MultipleLines",
+        "Contract", "PaperlessBilling", "PaymentMethod",
+        "city", "Plan"
+    ]
+
+    # tieni solo quelle realmente presenti
+    categorical_cols = [c for c in categorical_cols if c in data.columns]
+
+    numeric_cols = [
+        "tenure", "MonthlyCharges", "TotalCharges",
+        "age", "city_code", "zip_code", "bundle"
+    ]
+
+    numeric_cols = [c for c in numeric_cols if c in data.columns]
+
+    # ----------------------------------------------------------
+    # 2. Conversione colonne numeriche (TotalCharges spesso è stringa)
+    # ----------------------------------------------------------
+    for col in numeric_cols:
+        data[col] = pd.to_numeric(data[col], errors="coerce")
+
+    # ----------------------------------------------------------
+    # 3. Gestione valori nulli
+    # ----------------------------------------------------------
+    data = data.dropna(subset=numeric_cols)  # rimuove record con numeri mancanti
+
+    # ----------------------------------------------------------
+    # 4. One-hot encoding
+    # ----------------------------------------------------------
+    st.subheader("🏷️ One-hot encoding colonne categoriche")
+    st.write("Sto trasformando:", categorical_cols)
+
+    try:
+        processed = pd.get_dummies(data, columns=categorical_cols, drop_first=True)
+    except Exception as e:
+        st.error(f"Errore nell'encoding: {e}")
         st.stop()
 
-    st.write("""
-    In questa fase eseguiamo:
-    - Codifica variabili categoriche (one-hot encoding)
-    - Standardizzazione delle variabili numeriche
-    """)
+    # ----------------------------------------------------------
+    # 5. Salva per il passo successivo
+    # ----------------------------------------------------------
+    st.session_state["processed_data"] = processed
 
-    if st.button("⚙️ Esegui Pulizia & Preparazione"):
-        data = st.session_state.data.copy()
+    st.success("Pulizia completata con successo!")
+    st.write("📊 Dataset dopo la pulizia:")
+    st.dataframe(processed.head())
 
-        # Encoding
-        processed = pd.get_dummies(data, columns=["offerta"], drop_first=True)
-
-        # Scaling
-        scaler = StandardScaler()
-        processed_scaled = scaler.fit_transform(processed)
-
-        st.session_state.processed = processed_scaled
-
-        st.success("Pulizia completata! Ora puoi passare al training.")
-
-    if st.session_state.processed is not None:
-        st.info("✔ Dati pronti per il training!")
 
 
 # ----------------------------------------------------------
@@ -193,4 +226,5 @@ elif page == "5️⃣ Insight Business":
     - Creazione di offerte personalizzate  
     - Segmentazione per priorità nella gestione ticket  
     """)
+
 
