@@ -5,46 +5,45 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
 import matplotlib.pyplot as plt
 
-# Configurazione pagina
 st.set_page_config(page_title="Clustering Clienti Telco", layout="wide")
 
-st.title("📊 Clustering Clienti Telco")
+st.title("📊 Clustering Clienti Telco – Procedura Guidata")
 
-# ------------------------
-# SIDEBAR DI NAVIGAZIONE
-# ------------------------
+# ----------------------------
+# INIZIALIZZAZIONE SESSION STATE
+# ----------------------------
+for key in ["data", "processed", "model", "clusters"]:
+    if key not in st.session_state:
+        st.session_state[key] = None
+
+
+# ----------------------------
+# SIDEBAR
+# ----------------------------
 st.sidebar.title("Navigazione")
 page = st.sidebar.radio(
-    "Seleziona fase:",
+    "Fasi del modello:",
     [
-        "1. Caricamento Dati",
-        "2. Pulizia e Preparazione",
-        "3. Training Modello",
-        "4. Visualizzazione Cluster",
-        "5. Insight Business"
+        "1️⃣ Caricamento Dati",
+        "2️⃣ Pulizia & Feature Engineering",
+        "3️⃣ Training",
+        "4️⃣ Visualizzazione Cluster",
+        "5️⃣ Insight Business"
     ]
 )
-
-# Variabili di sessione per mantenere dataset e modello
-if "data" not in st.session_state:
-    st.session_state.data = None
-if "processed" not in st.session_state:
-    st.session_state.processed = None
-if "model" not in st.session_state:
-    st.session_state.model = None
 
 
 # ----------------------------------------------------------
 # 1. CARICAMENTO DATI
 # ----------------------------------------------------------
-if page == "1. Caricamento Dati":
-    st.header("📊 Caricamento Dataset")
+if page == "1️⃣ Caricamento Dati":
+    st.header("📥 1. Caricamento Dataset")
 
-    option = st.radio("Scegli un'opzione:",
+    option = st.radio("Scegli come ottenere i dati:",
                       ["Usa dataset di esempio", "Carica un tuo CSV"])
 
     if option == "Usa dataset di esempio":
-        if st.button("Genera Dataset di Esempio"):
+        if st.button("📌 Genera Dataset di Esempio"):
             np.random.seed(42)
             n = 300
 
@@ -56,87 +55,114 @@ if page == "1. Caricamento Dati":
             })
 
             st.session_state.data = data
-            st.success("Dataset generato!")
+            st.session_state.processed = None
+            st.session_state.model = None
+            st.session_state.clusters = None
+
+            st.success("Dataset generato correttamente!")
 
     else:
         uploaded = st.file_uploader("Carica un file CSV", type="csv")
         if uploaded:
             st.session_state.data = pd.read_csv(uploaded)
+            st.session_state.processed = None
+            st.session_state.model = None
+            st.session_state.clusters = None
             st.success("File caricato!")
 
     if st.session_state.data is not None:
-        st.subheader("Anteprima Dataset")
+        st.subheader("📄 Anteprima")
         st.dataframe(st.session_state.data.head())
 
 
 # ----------------------------------------------------------
 # 2. PULIZIA E PREPARAZIONE
 # ----------------------------------------------------------
-elif page == "2. Pulizia e Preparazione":
-    st.header("🧹 Pulizia & Feature Engineering")
+elif page == "2️⃣ Pulizia & Feature Engineering":
+    st.header("🧹 2. Pulizia e Preparazione Dati")
 
     if st.session_state.data is None:
-        st.warning("Carica prima un dataset!")
+        st.warning("⚠ Prima carica un dataset!")
         st.stop()
 
-    data = st.session_state.data.copy()
+    st.write("""
+    In questa fase eseguiamo:
+    - Codifica variabili categoriche (one-hot encoding)
+    - Standardizzazione delle variabili numeriche
+    """)
 
-    st.write("➕ Codifica variabile categorica 'offerta'")
-    processed = pd.get_dummies(data, columns=["offerta"], drop_first=True)
+    if st.button("⚙️ Esegui Pulizia & Preparazione"):
+        data = st.session_state.data.copy()
 
-    st.write("📏 Standardizzazione")
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(processed)
+        # Encoding
+        processed = pd.get_dummies(data, columns=["offerta"], drop_first=True)
 
-    st.session_state.processed = X_scaled
-    st.success("Preparazione completata!")
+        # Scaling
+        scaler = StandardScaler()
+        processed_scaled = scaler.fit_transform(processed)
+
+        st.session_state.processed = processed_scaled
+
+        st.success("Pulizia completata! Ora puoi passare al training.")
+
+    if st.session_state.processed is not None:
+        st.info("✔ Dati pronti per il training!")
 
 
 # ----------------------------------------------------------
-# 3. TRAINING MODELLO
+# 3. TRAINING
 # ----------------------------------------------------------
-elif page == "3. Training Modello":
-    st.header("🤖 Training KMeans")
+elif page == "3️⃣ Training":
+    st.header("🤖 3. Addestramento Modello KMeans")
 
     if st.session_state.processed is None:
-        st.warning("Prima esegui la preparazione dati!")
+        st.warning("⚠ Prima esegui la pulizia dei dati!")
         st.stop()
 
-    k = st.slider("Numero di cluster (k)", min_value=2, max_value=10, value=4)
+    k = st.slider("Scegli il numero di cluster", 2, 10, 4)
 
-    kmeans = KMeans(n_clusters=k, random_state=42)
-    clusters = kmeans.fit_predict(st.session_state.processed)
+    if st.button("🚀 Avvia Training"):
+        kmeans = KMeans(n_clusters=k, random_state=42)
+        clusters = kmeans.fit_predict(st.session_state.processed)
 
-    st.session_state.data["cluster"] = clusters
-    st.session_state.model = kmeans
+        st.session_state.model = kmeans
+        st.session_state.clusters = clusters
+        st.session_state.data["cluster"] = clusters
 
-    st.success("Modello addestrato con successo!")
-    st.write("Distribuzione cluster:")
-    st.bar_chart(st.session_state.data["cluster"].value_counts().sort_index())
+        st.success("Modello addestrato correttamente!")
+
+        st.write("Distribuzione cluster:")
+        st.bar_chart(st.session_state.data["cluster"].value_counts().sort_index())
+
+    if st.session_state.model is not None:
+        st.info("✔ Training completato!")
 
 
 # ----------------------------------------------------------
-# 4. VISUALIZZAZIONE CLUSTER
+# 4. VISUALIZZAZIONE
 # ----------------------------------------------------------
-elif page == "4. Visualizzazione Cluster":
-    st.header("📈 Visualizzazione Cluster")
+elif page == "4️⃣ Visualizzazione Cluster":
+    st.header("📈 4. Visualizzazione")
 
     if st.session_state.model is None:
-        st.warning("Prima addestra il modello!")
+        st.warning("⚠ Prima addestra il modello!")
         st.stop()
 
     data = st.session_state.data
 
+    st.write("Scatter plot dei cluster basato su due variabili chiave.")
+
     fig, ax = plt.subplots(figsize=(8, 5))
-    scatter = ax.scatter(
+    ax.scatter(
         data["anzianita_mesi"],
         data["spesa_mensile"],
         c=data["cluster"],
         alpha=0.7
     )
+
     ax.set_xlabel("Anzianità (mesi)")
     ax.set_ylabel("Spesa mensile (€)")
-    ax.set_title("Cluster dei clienti")
+    ax.set_title("Cluster Clienti")
     ax.grid(True)
 
     st.pyplot(fig)
@@ -145,26 +171,26 @@ elif page == "4. Visualizzazione Cluster":
 # ----------------------------------------------------------
 # 5. INSIGHT BUSINESS
 # ----------------------------------------------------------
-elif page == "5. Insight Business":
-    st.header("💡 Insight Business")
+elif page == "5️⃣ Insight Business":
+    st.header("💡 5. Insight Business")
 
     if st.session_state.model is None:
-        st.warning("Prima addestra il modello!")
+        st.warning("⚠ Prima addestra il modello!")
         st.stop()
 
     data = st.session_state.data
 
-    st.subheader("📦 Distribuzione clienti per cluster")
+    st.subheader("Distribuzione cluster")
     st.bar_chart(data["cluster"].value_counts().sort_index())
 
-    st.subheader("📊 Statistiche dei cluster")
+    st.subheader("Statistiche medie per cluster")
     st.dataframe(data.groupby("cluster").mean(numeric_only=True))
 
     st.write("""
-    ### Come usare questi cluster nel business:
-    - Identificare clienti ad **alto valore** → campagne di upselling  
-    - Individuare clienti **a rischio churn** (ticket alti, bassa spesa)  
-    - Personalizzare offerte e bundle in base al cluster  
-    - Migliorare il prioritization dei ticket  
+    ### 🎯 Utilizzi Business del Clustering
+    - Identificazione clienti ad **alto potenziale** per upselling  
+    - Rilevazione clienti **a rischio churn** (ticket alti, bassa spesa)  
+    - Creazione di offerte personalizzate  
+    - Segmentazione per priorità nella gestione ticket  
     """)
 
