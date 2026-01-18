@@ -48,7 +48,7 @@ SCRIPT_B = [
     "d1e1", "e5d4",
     "e1e4", "e8f8",
     "e4a8", "f6d8",
-    "f3d4", "c6d4",
+    "f3d4", "b4d3",
     "a8f3", "g7g5",
     "f3f7"  # ♕ SCACCO MATTO DEL BIANCO
 ]
