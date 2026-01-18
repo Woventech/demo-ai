@@ -11,30 +11,21 @@ st.set_page_config(layout="wide")
 
 # 🔴 PRE-TRAINING – Bianco inesperto, Nero dominante
 SCRIPT_A = [
-    "f2f3",
-    "e7e5",
-    "g2g4",
-    "d8h4",   # scacco
-    "e1f2",
-    "h4g5",   # cattura pedone
-    "h2h4",
-    "g5g3"    # scacco matto del nero
+    "f2f3", "e7e5",
+    "g2g4", "d8h4",
+    "e1f2", "h4g5",
+    "h2h4", "g5g3",
+    "f2g3", "d7d5",
+    "g3h2", "c8g4",
+    "f3g4", "g4g3"  # scacco matto nero
 ]
 
 # 🟢 POST-TRAINING – Bianco addestrato, vince
 SCRIPT_B = [
     "e2e4", "e7e5",
-    "g1f3", "b8c6",
-    "f1c4", "f8c5",
-    "c4f7",   # + cattura alfiere
-    "e8f7",
-    "f3e5",   # + cattura pedone
-    "c6e5",
-    "d1h5",
-    "g7g6",
-    "h5e5",   # + cattura cavallo
-    "f7g8",
-    "e5e6"    # scacco matto del bianco
+    "f1c4", "b8c6",
+    "d1h5", "g8f6",
+    "h5f7"  # scacco matto del bianco
 ]
 
 # ==========================================================
@@ -67,24 +58,15 @@ PIECE_VALUES = {
 }
 
 def compute_reward(board, scenario):
-    # Scacco matto
     if board.is_checkmate():
-        return (-120, "❌ Scacco matto subito") if scenario == "A" else (120, "👑 Scacco matto inflitto")
+        return (100, "👑 Scacco matto inflitto") if scenario == "B" else (-100, "❌ Scacco matto subito")
 
-    # Scenario A: penalità crescente
     if scenario == "A":
-        penalty = -15 * len(st.session_state.rewards)
-        return penalty, "❌ Mossa inefficiente"
+        return -5, "❌ Mossa casuale (policy non addestrata)"
 
-    # Scenario B: reward per materiale
-    score = 0
-    for sq in chess.SQUARES:
-        p = board.piece_at(sq)
-        if p:
-            v = PIECE_VALUES.get(p.piece_type, 0)
-            score += v if p.color == chess.WHITE else -v
+    # Scenario B: reward costante positiva
+    return 3, "✅ Mossa coerente con la policy addestrata"
 
-    return score, "✅ Vantaggio materiale"
 
 # ==========================================================
 # STEP SUCCESSIVO
@@ -113,7 +95,7 @@ def step():
 # ==========================================================
 st.title("♟️ Reinforcement Learning – Prima e Dopo il Training")
 
-col_board, col_data = st.columns([1.3, 1])
+col_board, col_controls, col_data = st.columns([1.2, 0.5, 1])
 
 # ---------- SCACCHIERA ----------
 with col_board:
@@ -126,37 +108,35 @@ with col_board:
 
     svg = chess.svg.board(
         board=st.session_state.board,
-        size=440,
+        size=420,
         lastmove=last_move
     )
     st.image(svg)
 
+# ---------- CONTROLLI VICINI ----------
+with col_controls:
+    st.subheader("Controlli")
+
+    if not st.session_state.board.is_game_over():
+        if st.button("▶ Prossimo passo", type="primary", use_container_width=True):
+            step()
+            st.rerun()
+    else:
+        st.success("Partita terminata")
+
 # ---------- DATI ----------
 with col_data:
-    st.subheader("Curva Reward / Loss")
+    st.subheader("Reward")
 
-    fig, ax = plt.subplots(figsize=(6, 4))
-    color = "red" if st.session_state.scenario == "A" else "green"
-
-    ax.plot(
-        st.session_state.rewards,
-        marker="o",
-        linewidth=2,
-        color=color
-    )
+    fig, ax = plt.subplots(figsize=(5, 3))
+    ax.plot(st.session_state.rewards, marker="o")
     ax.axhline(0, linestyle="--", alpha=0.3)
     ax.set_xlabel("Step")
     ax.set_ylabel("Reward")
-
     st.pyplot(fig)
 
-    st.markdown("### Ultimo feedback dell’agente")
     st.info(st.session_state.reward_log[-1])
 
-    if st.session_state.scenario == "A":
-        st.error("🔴 Policy iniziale – l’agente sbaglia ed esplora")
-    else:
-        st.success("🟢 Policy addestrata – l’agente sfrutta ciò che ha imparato")
 
 # ==========================================================
 # CONTROLLI
