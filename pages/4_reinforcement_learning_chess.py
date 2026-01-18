@@ -8,43 +8,36 @@ st.set_page_config(layout="wide")
 
 # ---------- INIT SESSION ----------
 if "board" not in st.session_state:
-    # Posizione iniziale standard completa di tutti i pezzi
     st.session_state.board = chess.Board()
 
-if "Q" not in st.session_state:
-    st.session_state.Q = {} 
+# Tabelle Q separate per i due colori
+if "Q_white" not in st.session_state:
+    st.session_state.Q_white = {} # Inizialmente non addestrato
+if "Q_black" not in st.session_state:
+    st.session_state.Q_black = {} # Questo lo addestriamo subito
+    
+if "rewards_white" not in st.session_state:
+    st.session_state.rewards_white = []
 
-if "rewards" not in st.session_state:
-    st.session_state.rewards = []
+if "scenario" not in st.session_state:
+    st.session_state.scenario = "A" # Scenario A: Nero potente, Bianco scarso
 
-if "training_done" not in st.session_state:
-    st.session_state.training_done = False
-
-# ---------- PARAMETRI RL ----------
-st.sidebar.title("Parametri RL")
-alpha = st.sidebar.slider("Learning rate (α)", 0.1, 1.0, 0.5)
-gamma = st.sidebar.slider("Discount factor (γ)", 0.1, 1.0, 0.9)
-epsilon = st.sidebar.slider("Esplorazione (ε)", 0.0, 1.0, 0.2)
-
-# ---------- FUNZIONI ----------
+# ---------- FUNZIONI DI SUPPORTO ----------
 def get_state(board):
     return " ".join(board.fen().split()[:4])
 
-def choose_action(state, legal_moves):
-    # Se l'agente non è addestrato e non c'è esplorazione, la Q-table vuota porterà a mosse casuali
-    if not st.session_state.Q or random.random() < epsilon:
+def choose_action(state, legal_moves, q_table, epsilon_val):
+    if not q_table or random.random() < epsilon_val:
         return random.choice(legal_moves)
-    qs = [st.session_state.Q.get((state, m.uci()), 0) for m in legal_moves]
+    qs = [q_table.get((state, m.uci()), 0) for m in legal_moves]
     max_q = max(qs)
     best_moves = [i for i, q in enumerate(qs) if q == max_q]
     return legal_moves[random.choice(best_moves)]
 
-def get_reward(board):
+def get_reward_eval(board):
+    """Valutazione materiale per il grafico"""
     if board.is_checkmate():
-        # Se il Bianco (agente) vince, premio massimo. Se perde, penalità.
         return 100 if board.result() == "1-0" else -100
-    
-    # Valutazione materiale per rendere il grafico dinamico
     values = {chess.PAWN: 1, chess.KNIGHT: 3, chess.BISHOP: 3, chess.ROOK: 5, chess.QUEEN: 9}
     score = 0
     for pt, val in values.items():
@@ -52,71 +45,86 @@ def get_reward(board):
         score -= len(board.pieces(pt, chess.BLACK)) * val
     return score
 
-def train_agent(num_episodes=500):
-    # Simulazione rapida per scopi didattici
-    local_q = st.session_state.Q.copy()
+def run_training(num_episodes, color_to_train):
+    """Addestra una specifica tabella Q"""
+    new_q = {}
     for _ in range(num_episodes):
         b = chess.Board()
         while not b.is_game_over():
             s = get_state(b)
-            m = random.choice(list(b.legal_moves))
-            b.push(m)
-            # Logica di aggiornamento Q-learning semplificata
-            reward = get_reward(b)
-            local_q[(s, m.uci())] = local_q.get((s, m.uci()), 0) + 0.5 * reward
-    st.session_state.Q = local_q
-    st.session_state.training_done = True
+            move = random.choice(list(b.legal_moves))
+            b.push(move)
+            # Semplificazione: premiamo solo se il colore scelto vince o mangia
+            reward = get_reward_eval(b)
+            if color_to_train == chess.BLACK: reward = -reward
+            new_q[(s, move.uci())] = new_q.get((s, move.uci()), 0) + 0.5 * reward
+    return new_q
+
+# ---------- LOGICA SCENARI ----------
+# All'avvio, se siamo in scenario A e il Nero non ha memoria, lo addestriamo
+if st.session_state.scenario == "A" and not st.session_state.Q_black:
+    with st.spinner("Preparazione Scenario A: Addestramento Nero (500 partite)..."):
+        st.session_state.Q_black = run_training(500, chess.BLACK)
 
 # ---------- LAYOUT ----------
-st.title("♟️ Reinforcement Learning – Agente vs Umano")
+st.title("♟️ RL: Lo scontro tra livelli di addestramento")
 
-col1, col2 = st.columns([1, 1])
+col1, col2 = st.columns([1.2, 1])
 
 with col1:
     st.subheader("Scacchiera")
-    st.image(chess.svg.board(board=st.session_state.board, size=400))
+    st.image(chess.svg.board(board=st.session_state.board, size=450))
 
 with col2:
-    st.subheader("Analisi Reward")
-    if st.session_state.rewards:
+    st.subheader("Analisi Performance Bianco")
+    if st.session_state.rewards_white:
         fig, ax = plt.subplots()
-        ax.plot(st.session_state.rewards, marker='o', linestyle='-', color='b')
-        ax.set_title("Andamento della Ricompensa")
-        ax.set_xlabel("Mossa")
-        ax.set_ylabel("Reward (Materiale + Stato)")
+        ax.plot(st.session_state.rewards_white, marker='o', color='green' if st.session_state.scenario == "B" else 'red')
+        ax.set_title("Reward cumulata del Bianco")
         st.pyplot(fig)
     
-    st.write(f"**Stato Agente:** {'✅ Addestrato' if st.session_state.training_done else '⚪ Non addestrato'}")
-    st.write(f"**Conoscenza acquisita:** {len(st.session_state.Q)} combinazioni memorizzate")
+    # Info didattiche
+    if st.session_state.scenario == "A":
+        st.error("SCENARIO A: Bianco (Non Addestrato) vs Nero (Esperto)")
+        st.write("In questo caso vedrai il Bianco fare mosse senza senso e il grafico del reward crollare non appena il Nero inizia a mangiare i pezzi.")
+    else:
+        st.success("SCENARIO B: Bianco (Super Addestrato) vs Nero (Poco Addestrato)")
+        st.write("Ora il Bianco domina. Nota come il reward sale rapidamente ad ogni mossa corretta o cattura.")
 
-# ---------- LOGICA DI GIOCO ----------
+# ---------- GESTIONE MOSSE ----------
 if not st.session_state.board.is_game_over():
-    if st.session_state.board.turn: # Bianco (Agente)
-        st.info("Turno dell'agente (Bianco)")
-        if st.button("L'agente fa una mossa"):
+    if st.session_state.board.turn == chess.WHITE:
+        if st.button("Fai muovere il BIANCO"):
             state = get_state(st.session_state.board)
-            move = choose_action(state, list(st.session_state.board.legal_moves))
+            # Se scenario B, il bianco usa la Q-table potente
+            move = choose_action(state, list(st.session_state.board.legal_moves), st.session_state.Q_white, 0.05)
             st.session_state.board.push(move)
-            st.session_state.rewards.append(get_reward(st.session_state.board))
+            st.session_state.rewards_white.append(get_reward_eval(st.session_state.board))
             st.rerun()
-    else: # Nero (Umano/Automatico)
-        st.info("Tocca a te (Nero)")
-        if st.button("Fai muovere il Nero per me"):
-            # Sceglie la mossa migliore disponibile (o una sensata) per il Nero
-            move = random.choice(list(st.session_state.board.legal_moves))
+    else:
+        if st.button("Fai muovere il NERO"):
+            state = get_state(st.session_state.board)
+            move = choose_action(state, list(st.session_state.board.legal_moves), st.session_state.Q_black, 0.05)
             st.session_state.board.push(move)
-            st.session_state.rewards.append(get_reward(st.session_state.board))
+            st.session_state.rewards_white.append(get_reward_eval(st.session_state.board))
             st.rerun()
 else:
-    st.success(f"Partita terminata! Risultato: {st.session_state.board.result()}")
+    st.warning(f"Fine partita: {st.session_state.board.result()}")
 
-# ---------- SIDEBAR CONTROLS ----------
-st.sidebar.subheader("Centro Addestramento")
-if st.sidebar.button("Avvia Addestramento Rapido"):
-    train_agent()
-    st.rerun()
+# ---------- SIDEBAR: IL TASTO MAGICO ----------
+st.sidebar.header("Controllo Didattico")
 
-if st.sidebar.button("Reset Partita"):
-    st.session_state.board = chess.Board()
-    st.session_state.rewards = []
+if st.sidebar.button("INVERTI: Addestra Bianco (1000 ep)"):
+    with st.spinner("Addestramento intensivo Bianco in corso..."):
+        st.session_state.Q_white = run_training(1000, chess.WHITE)
+        # Indeboliamo il nero (solo 20 partite)
+        st.session_state.Q_black = run_training(20, chess.BLACK)
+        st.session_state.scenario = "B"
+        st.session_state.board = chess.Board() # Reset scacchiera
+        st.session_state.rewards_white = []
+        st.success("Scenario invertito!")
+        st.rerun()
+
+if st.sidebar.button("Reset Totale"):
+    st.session_state.clear()
     st.rerun()
