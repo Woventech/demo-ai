@@ -122,13 +122,6 @@ fig_2d_human = px.scatter(
 
 st.plotly_chart(fig_2d_human, use_container_width=True)
 
-fig.update_layout(
-    title_font_size=TITLE_SIZE,
-    legend_title_font_size=LEGEND_SIZE,
-    legend_font_size=LEGEND_SIZE,
-    font=dict(size=PLOT_FONT_SIZE)
-)
-
 
 st.info("""
 Scegliamo **solo due dimensioni** perché il nostro cervello funziona così.
@@ -201,6 +194,13 @@ fig_pca_2d = px.scatter(
         "PCA2": pca2_name
     },
     title="Spazio latente bidimensionale"
+)
+
+fig_pca_2d.update_layout(
+    title_font_size=TITLE_SIZE,
+    legend_title_font_size=LEGEND_SIZE,
+    legend_font_size=LEGEND_SIZE,
+    font=dict(size=PLOT_FONT_SIZE)
 )
 
 st.plotly_chart(fig_pca_2d, use_container_width=True)
