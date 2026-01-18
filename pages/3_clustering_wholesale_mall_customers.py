@@ -11,10 +11,11 @@ import plotly.express as px
 # =====================================================
 # LAYOUT SETTINGS
 # =====================================================
+
 PLOT_FONT_SIZE = 18
 AXIS_TITLE_SIZE = 22
 TITLE_SIZE = 26
-LEGEND_SIZE = 16
+LEGEND_SIZE = 20
 
 # =====================================================
 # CONFIG
