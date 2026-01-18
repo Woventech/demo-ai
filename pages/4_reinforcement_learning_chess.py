@@ -6,37 +6,39 @@ import matplotlib.pyplot as plt
 st.set_page_config(layout="wide")
 
 # ==========================================================
-# SCENEGGIATURE DIDATTICHE (BREVI E CHIARE)
+# SCENARI SCRIPTATI (LEGALI E DIDATTICI)
 # ==========================================================
 
-# 🔴 Scenario A: Bianco non addestrato → perde rapidamente
+# 🔴 PRE-TRAINING – Bianco inesperto, Nero dominante
 SCRIPT_A = [
-    "f2f3",  # mossa debole
+    "f2f3",
     "e7e5",
-    "g2g4",  # errore grave
-    "d8h4"   # scacco matto (4 mosse totali)
+    "g2g4",
+    "d8h4",   # scacco
+    "e1f2",
+    "h4g5",   # cattura pedone
+    "h2h4",
+    "g5g3"    # scacco matto del nero
 ]
 
-# 🟢 Scenario B: Bianco addestrato → guadagna materiale e vince
+# 🟢 POST-TRAINING – Bianco addestrato, vince
 SCRIPT_B = [
     "e2e4", "e7e5",
     "g1f3", "b8c6",
     "f1c4", "f8c5",
-    "c2c3", "g8f6",
-    "d2d4", "e5d4",  # cattura del nero
-    "c3d4",          # bianco riprende → gain
-    "c5b4",
-    "c1d2",
-    "b4d2",
-    "b1d2",          # altro pezzo guadagnato
-    "f6e4",
-    "d1b3",
-    "e4d2",
-    "b3f7"           # scacco matto simulato
+    "c4f7",   # + cattura alfiere
+    "e8f7",
+    "f3e5",   # + cattura pedone
+    "c6e5",
+    "d1h5",
+    "g7g6",
+    "h5e5",   # + cattura cavallo
+    "f7g8",
+    "e5e6"    # scacco matto del bianco
 ]
 
 # ==========================================================
-# INIZIALIZZAZIONE STATO
+# SESSION STATE
 # ==========================================================
 if "board" not in st.session_state:
     st.session_state.board = chess.Board()
@@ -50,66 +52,71 @@ if "rewards" not in st.session_state:
 if "move_index" not in st.session_state:
     st.session_state.move_index = 0
 
+if "reward_log" not in st.session_state:
+    st.session_state.reward_log = ["Start"]
+
 # ==========================================================
-# FUNZIONE DI REWARD (DIDATTICA)
+# REWARD DIDATTICO + SPIEGAZIONE
 # ==========================================================
-def get_reward(board, scenario):
-    # MATTO
+PIECE_VALUES = {
+    chess.PAWN: 1,
+    chess.KNIGHT: 3,
+    chess.BISHOP: 3,
+    chess.ROOK: 5,
+    chess.QUEEN: 9
+}
+
+def compute_reward(board, scenario):
+    # Scacco matto
     if board.is_checkmate():
-        return -100 if scenario == "A" else +100
+        return (-120, "❌ Scacco matto subito") if scenario == "A" else (120, "👑 Scacco matto inflitto")
 
-    # Scenario A: penalità crescenti
+    # Scenario A: penalità crescente
     if scenario == "A":
-        return -10 * (len(st.session_state.rewards))
+        penalty = -15 * len(st.session_state.rewards)
+        return penalty, "❌ Mossa inefficiente"
 
-    # Scenario B: reward per materiale guadagnato
-    values = {
-        chess.PAWN: 1,
-        chess.KNIGHT: 3,
-        chess.BISHOP: 3,
-        chess.ROOK: 5,
-        chess.QUEEN: 9
-    }
-
+    # Scenario B: reward per materiale
     score = 0
     for sq in chess.SQUARES:
         p = board.piece_at(sq)
         if p:
-            val = values.get(p.piece_type, 0)
-            score += val if p.color == chess.WHITE else -val
+            v = PIECE_VALUES.get(p.piece_type, 0)
+            score += v if p.color == chess.WHITE else -v
 
-    return score
+    return score, "✅ Vantaggio materiale"
 
 # ==========================================================
 # STEP SUCCESSIVO
 # ==========================================================
-def run_next_step():
+def step():
     script = SCRIPT_A if st.session_state.scenario == "A" else SCRIPT_B
     idx = st.session_state.move_index
 
-    if idx < len(script):
-        move_uci = script[idx]
-        move = chess.Move.from_uci(move_uci)
+    if idx >= len(script):
+        return
 
-        if move in st.session_state.board.legal_moves:
-            st.session_state.board.push(move)
-            reward = get_reward(st.session_state.board, st.session_state.scenario)
-            st.session_state.rewards.append(reward)
-            st.session_state.move_index += 1
-        else:
-            st.error(f"Mossa illegale: {move_uci}")
-    else:
-        st.warning("Fine della sequenza di apprendimento.")
+    move = chess.Move.from_uci(script[idx])
+
+    if move in st.session_state.board.legal_moves:
+        st.session_state.board.push(move)
+        reward, explanation = compute_reward(
+            st.session_state.board,
+            st.session_state.scenario
+        )
+        st.session_state.rewards.append(reward)
+        st.session_state.reward_log.append(explanation)
+        st.session_state.move_index += 1
 
 # ==========================================================
-# INTERFACCIA
+# UI
 # ==========================================================
-st.title("♟️ Reinforcement Learning – Curva di Apprendimento")
+st.title("♟️ Reinforcement Learning – Prima e Dopo il Training")
 
-col1, col2 = st.columns([1.2, 1])
+col_board, col_data = st.columns([1.3, 1])
 
 # ---------- SCACCHIERA ----------
-with col1:
+with col_board:
     st.subheader("Scacchiera")
 
     last_move = (
@@ -117,16 +124,16 @@ with col1:
         if st.session_state.board.move_stack else None
     )
 
-    board_svg = chess.svg.board(
+    svg = chess.svg.board(
         board=st.session_state.board,
-        size=420,
+        size=440,
         lastmove=last_move
     )
-    st.image(board_svg)
+    st.image(svg)
 
-# ---------- CURVA ----------
-with col2:
-    st.subheader("Reward / Loss")
+# ---------- DATI ----------
+with col_data:
+    st.subheader("Curva Reward / Loss")
 
     fig, ax = plt.subplots(figsize=(6, 4))
     color = "red" if st.session_state.scenario == "A" else "green"
@@ -137,19 +144,19 @@ with col2:
         linewidth=2,
         color=color
     )
-
-    ax.axhline(0, linestyle="--", alpha=0.4)
+    ax.axhline(0, linestyle="--", alpha=0.3)
     ax.set_xlabel("Step")
     ax.set_ylabel("Reward")
 
-    if st.session_state.scenario == "A":
-        ax.set_title("Fase iniziale – perdita rapida")
-        st.error("🔴 Agente non addestrato")
-    else:
-        ax.set_title("Dopo training – miglioramento progressivo")
-        st.success("🟢 Agente addestrato")
-
     st.pyplot(fig)
+
+    st.markdown("### Ultimo feedback dell’agente")
+    st.info(st.session_state.reward_log[-1])
+
+    if st.session_state.scenario == "A":
+        st.error("🔴 Policy iniziale – l’agente sbaglia ed esplora")
+    else:
+        st.success("🟢 Policy addestrata – l’agente sfrutta ciò che ha imparato")
 
 # ==========================================================
 # CONTROLLI
@@ -159,9 +166,8 @@ c1, c2, c3 = st.columns(3)
 
 with c1:
     if not st.session_state.board.is_game_over():
-        turno = "BIANCO" if st.session_state.board.turn else "NERO"
-        if st.button(f"Step ({turno})", use_container_width=True):
-            run_next_step()
+        if st.button("▶️ Step successivo", use_container_width=True, type="primary"):
+            step()
             st.rerun()
     else:
         st.success(f"Partita finita – Risultato: {st.session_state.board.result()}")
@@ -171,9 +177,9 @@ with c3:
         st.session_state.scenario = "B"
         st.session_state.board = chess.Board()
         st.session_state.rewards = [0]
+        st.session_state.reward_log = ["Start"]
         st.session_state.move_index = 0
         st.rerun()
 
 if st.sidebar.button("Reset totale", use_container_width=True):
-    st.session_state.clear()
-    st.rerun()
+    st
