@@ -152,6 +152,27 @@ df["PCA1"] = X_pca[:, 0]
 df["PCA2"] = X_pca[:, 1]
 df["PCA3"] = X_pca[:, 2]
 
+st.sidebar.markdown("### 🧠 Significato delle Componenti PCA")
+
+pca1_name = st.sidebar.text_input(
+    "Nome PCA1",
+    "Orientamento alla Distribuzione di Massa"
+)
+
+pca2_name = st.sidebar.text_input(
+    "Nome PCA2",
+    "Orientamento a Fresco e Specialità"
+)
+
+pca3_name = st.sidebar.text_input(
+    "Nome PCA3",
+    "Comportamento di Nicchia"
+)
+
+with st.expander("🔎 Composizione delle Componenti (PCA Loadings)"):
+    st.dataframe(loadings.style.format("{:.2f}"))
+
+
 # ============================================================
 # 4️⃣ PCA 3D
 # ============================================================
