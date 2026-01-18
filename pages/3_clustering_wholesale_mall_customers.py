@@ -9,6 +9,14 @@ from sklearn.cluster import KMeans
 import plotly.express as px
 
 # =====================================================
+# LAYOUT SETTINGS
+# =====================================================
+PLOT_FONT_SIZE = 18
+AXIS_TITLE_SIZE = 22
+TITLE_SIZE = 26
+LEGEND_SIZE = 16
+
+# =====================================================
 # CONFIG
 # =====================================================
 st.set_page_config(
@@ -114,9 +122,19 @@ fig_2d_human = px.scatter(
 
 st.plotly_chart(fig_2d_human, use_container_width=True)
 
+fig.update_layout(
+    title_font_size=TITLE_SIZE,
+    legend_title_font_size=LEGEND_SIZE,
+    legend_font_size=LEGEND_SIZE,
+    font=dict(size=PLOT_FONT_SIZE)
+)
+
+
 st.info("""
 Scegliamo **solo due dimensioni** perché il nostro cervello funziona così.
 """)
+
+
 
 # =====================================================
 # ATTO 1 — SPAZIO UMANO (3D)
