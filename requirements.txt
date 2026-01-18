@@ -1,7 +1,8 @@
-streamlit
+sstreamlit
 pandas
 numpy
 scikit-learn
 matplotlib
 seaborn
 plotly
+chess
