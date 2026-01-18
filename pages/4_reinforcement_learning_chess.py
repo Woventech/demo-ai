@@ -20,13 +20,13 @@ SCRIPT_B = [
     "e2e4", "e7e5",
     "g1f3", "b8c6",
     "f1c4", "f8c5",
-    "d1e2", "g8f6",
-    "c2c3", "d7d6",
-    "d2d4", "c5b6",
-    "e1g1", "e8g8",
-    "f3e5", "d6e5",
-    "c4f7"
+    "c2c3", "g8f6",
+    "d2d4", "e5d4",
+    "c3d4", "c5b4",
+    "b1c3", "f6e4",
+    "c4f7"   # scacco matto del bianco
 ]
+
 
 # ----------------- STATE -----------------
 if "board" not in st.session_state:
