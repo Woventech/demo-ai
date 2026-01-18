@@ -262,7 +262,7 @@ if not st.session_state.board.is_game_over():
 
             if st.button("Gioca la mossa", key="play_human_move"):
                 st.session_state.board.push(chess.Move.from_uci(user_move))
-                st.experimental_rerun() # Usiamo rerun qui perché è una mossa utente
+                st.rerun() # Usiamo rerun qui perché è una mossa utente
                 
 else:
     st.success("Partita terminata 🎉")
