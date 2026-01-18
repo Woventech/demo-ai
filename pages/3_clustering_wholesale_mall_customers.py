@@ -135,6 +135,23 @@ Qui gli assi **non sono variabili reali**
 ma **combinazioni intelligenti** che spiegano il comportamento dei clienti.
 """)
 
+
+# -----------------------------
+# PCA + LOADINGS
+# -----------------------------
+pca = PCA(n_components=3)
+X_pca = pca.fit_transform(X_scaled)
+
+loadings = pd.DataFrame(
+    pca.components_.T,
+    columns=["PCA1", "PCA2", "PCA3"],
+    index=features
+)
+
+df["PCA1"] = X_pca[:, 0]
+df["PCA2"] = X_pca[:, 1]
+df["PCA3"] = X_pca[:, 2]
+
 # ============================================================
 # 4️⃣ PCA 3D
 # ============================================================
