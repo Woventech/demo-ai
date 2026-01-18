@@ -12,14 +12,15 @@ import plotly.express as px
 # CONFIG
 # =====================================================
 st.set_page_config(
-    page_title="Clustering & PCA – Live Demo",
+    page_title="Come ragiona un algoritmo",
     layout="wide"
 )
 
-st.title("🧠 Clustering e Riduzione Dimensionale")
+st.title("🧠 Come ragiona un algoritmo di Clustering")
 st.markdown("""
-Questa demo mostra **come un algoritmo ragiona nello spazio multidimensionale**
-e come possiamo **renderlo visibile**.
+Un viaggio visivo:
+dal modo **umano** di guardare i dati  
+al modo **algoritmico** di comprenderli.
 """)
 
 # =====================================================
@@ -44,37 +45,32 @@ features = [
 X = df[features]
 
 # =====================================================
-# SIDEBAR – PARAMETRI
+# SIDEBAR
 # =====================================================
 st.sidebar.header("⚙️ Parametri")
 
-k = st.sidebar.slider(
-    "Numero di cluster (KMeans)",
-    min_value=2,
-    max_value=6,
-    value=3
-)
+k = st.sidebar.slider("Numero di cluster", 2, 6, 3)
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🧠 Naming semantico PCA")
 
 pca1_name = st.sidebar.text_input(
-    "Nome PCA 1",
+    "PCA 1",
     "Orientamento alla Distribuzione di Massa"
 )
 
 pca2_name = st.sidebar.text_input(
-    "Nome PCA 2",
+    "PCA 2",
     "Orientamento a Fresco e Specialità"
 )
 
 pca3_name = st.sidebar.text_input(
-    "Nome PCA 3",
+    "PCA 3",
     "Comportamento di Nicchia"
 )
 
 # =====================================================
-# ACTION BUTTON
+# ACTION
 # =====================================================
 st.markdown("## ▶️ Avvio Analisi")
 
@@ -82,31 +78,72 @@ start = st.button("🚀 Avvia calcolo")
 
 if not start:
     st.info("""
-    Premi **Avvia calcolo** per:
-    - preprocessare i dati
-    - calcolare i cluster
-    - ridurre le dimensioni con PCA
-    - visualizzare lo spazio dell'algoritmo
+    Premi **Avvia calcolo** per iniziare il viaggio:
+    1. spazio umano
+    2. spazio reale
+    3. spazio latente dell'algoritmo
     """)
     st.stop()
 
 # =====================================================
 # PREPROCESSING
 # =====================================================
-with st.spinner("🔄 Preprocessamento dei dati..."):
+with st.spinner("🔄 Elaborazione dati..."):
     X_log = np.log1p(X)
     X_scaled = StandardScaler().fit_transform(X_log)
 
-# =====================================================
-# CLUSTERING
-# =====================================================
-with st.spinner("🧩 Calcolo dei cluster..."):
     kmeans = KMeans(n_clusters=k, random_state=42)
-    clusters = kmeans.fit_predict(X_scaled)
-    df["Cluster"] = clusters.astype(str)
+    df["Cluster"] = kmeans.fit_predict(X_scaled).astype(str)
 
 # =====================================================
-# PCA
+# ATTO 1 — SPAZIO UMANO (2D)
+# =====================================================
+st.header("👀 ATTO 1 — Come vediamo noi i dati (2D)")
+
+col1, col2 = st.columns(2)
+x2 = col1.selectbox("Asse X", features, index=0)
+y2 = col2.selectbox("Asse Y", features, index=2)
+
+fig_2d_human = px.scatter(
+    df,
+    x=x2,
+    y=y2,
+    color="Cluster",
+    title="Spazio reale bidimensionale"
+)
+
+st.plotly_chart(fig_2d_human, use_container_width=True)
+
+st.info("""
+Scegliamo **solo due dimensioni** perché il nostro cervello funziona così.
+""")
+
+# =====================================================
+# ATTO 1 — SPAZIO UMANO (3D)
+# =====================================================
+st.subheader("👀 Spazio umano tridimensionale")
+
+x3 = st.selectbox("Asse X (3D)", features, index=0)
+y3 = st.selectbox("Asse Y (3D)", features, index=1)
+z3 = st.selectbox("Asse Z (3D)", features, index=2)
+
+fig_3d_human = px.scatter_3d(
+    df,
+    x=x3,
+    y=y3,
+    z=z3,
+    color="Cluster",
+    title="Spazio reale tridimensionale"
+)
+
+st.plotly_chart(fig_3d_human, use_container_width=True)
+
+st.warning("""
+Già con 3 dimensioni iniziamo a perdere intuizione.
+""")
+
+# =====================================================
+# ATTO 2 — PCA
 # =====================================================
 with st.spinner("📉 Riduzione dimensionale (PCA)..."):
     pca = PCA(n_components=3)
@@ -123,11 +160,10 @@ with st.spinner("📉 Riduzione dimensionale (PCA)..."):
     )
 
 # =====================================================
-# PCA 2D – TABELLA + GRAFICO
+# ATTO 3 — PCA 2D
 # =====================================================
-st.header("📊 PCA 2D – Interpretazione delle Componenti")
+st.header("🧠 ATTO 2 — L'algoritmo crea nuovi assi (PCA 2D)")
 
-st.subheader("🔎 Composizione delle Componenti (PCA 1 & 2)")
 st.dataframe(
     loadings[["PCA1", "PCA2"]]
     .rename(columns={
@@ -146,30 +182,27 @@ fig_pca_2d = px.scatter(
         "PCA1": pca1_name,
         "PCA2": pca2_name
     },
-    title="Spazio latente bidimensionale (PCA)"
+    title="Spazio latente bidimensionale"
 )
 
 st.plotly_chart(fig_pca_2d, use_container_width=True)
 
-st.info("""
-Gli assi **non sono variabili reali**  
-ma **combinazioni intelligenti** create dall’algoritmo.
+st.success("""
+Questi assi **non esistevano nei dati originali**.
+L’algoritmo li ha creati per capire meglio.
 """)
 
 # =====================================================
-# PCA 3D – TABELLA + GRAFICO
+# ATTO 4 — PCA 3D
 # =====================================================
-st.header("📐 PCA 3D – Multidimensionalità")
+st.header("🚀 ATTO 3 — Lo spazio dell'algoritmo (PCA 3D)")
 
-st.subheader("🔎 Composizione delle Componenti (PCA 1, 2 e 3)")
 st.dataframe(
-    loadings
-    .rename(columns={
+    loadings.rename(columns={
         "PCA1": pca1_name,
         "PCA2": pca2_name,
         "PCA3": pca3_name
-    })
-    .style.format("{:.3f}")
+    }).style.format("{:.3f}")
 )
 
 fig_pca_3d = px.scatter_3d(
@@ -183,23 +216,27 @@ fig_pca_3d = px.scatter_3d(
         "PCA2": pca2_name,
         "PCA3": pca3_name
     },
-    title="Spazio latente tridimensionale (PCA)"
+    title="Spazio latente tridimensionale"
 )
 
 st.plotly_chart(fig_pca_3d, use_container_width=True)
 
 st.warning("""
-Questo è il **limite della visualizzazione umana**.  
-L’algoritmo però lavora senza problemi in **molte più dimensioni**.
+Questo è il massimo che possiamo visualizzare.
+L’algoritmo però **non ha limiti dimensionali**.
 """)
 
 # =====================================================
-# FOOTER – MESSAGGIO CHIAVE
+# CHIUSURA
 # =====================================================
 st.markdown("---")
 st.markdown("""
-### 🧠 Messaggio chiave
+### 🎯 Messaggio finale
 
-> L’intelligenza artificiale non semplifica i dati.  
-> Li **riorganizza** per trovare strutture che noi non vediamo.
+> L’intelligenza artificiale  
+> non vede i dati come noi.  
+>  
+> Li **ricombina**,  
+> li **riproietta**,  
+> li **comprende**.
 """)
