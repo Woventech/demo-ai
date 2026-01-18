@@ -4,25 +4,32 @@ import chess.svg
 import random
 import matplotlib.pyplot as plt
 
-# Stato iniziale semplice
-board = chess.Board()
+st.set_page_config(layout="wide")
 
-# Q-table semplificata
-Q = {}
+# ---------- INIT SESSION ----------
+if "board" not in st.session_state:
+    st.session_state.board = chess.Board()
 
+if "Q" not in st.session_state:
+    st.session_state.Q = {}
+
+if "rewards" not in st.session_state:
+    st.session_state.rewards = []
+
+# ---------- PARAMETRI RL ----------
+st.sidebar.title("Parametri RL")
 alpha = st.sidebar.slider("Learning rate (α)", 0.1, 1.0, 0.5)
 gamma = st.sidebar.slider("Discount factor (γ)", 0.1, 1.0, 0.9)
 epsilon = st.sidebar.slider("Esplorazione (ε)", 0.0, 1.0, 0.2)
 
-reward_history = []
-
+# ---------- FUNZIONI ----------
 def get_state(board):
     return board.fen()
 
 def choose_action(state, legal_moves):
     if random.random() < epsilon:
         return random.choice(legal_moves)
-    qs = [Q.get((state, m.uci()), 0) for m in legal_moves]
+    qs = [st.session_state.Q.get((state, m.uci()), 0) for m in legal_moves]
     return legal_moves[qs.index(max(qs))]
 
 def get_reward(board):
@@ -32,35 +39,76 @@ def get_reward(board):
         return 0.2
     return -0.05
 
-st.title("♟️ Reinforcement Learning negli Scacchi")
+# ---------- LAYOUT ----------
+st.title("♟️ Reinforcement Learning – Agente vs Umano")
 
-if st.button("Fai una mossa"):
-    state = get_state(board)
-    legal_moves = list(board.legal_moves)
-    move = choose_action(state, legal_moves)
-    board.push(move)
+col1, col2 = st.columns([1, 1])
 
-    reward = get_reward(board)
-    reward_history.append(reward)
+# ---------- COLONNA SCACCHIERA ----------
+with col1:
+    st.subheader("Scacchiera")
+    st.image(
+        chess.svg.board(board=st.session_state.board, size=350),
+        use_container_width=False
+    )
 
-    next_state = get_state(board)
-    old_q = Q.get((state, move.uci()), 0)
-    future_q = max([Q.get((next_state, m.uci()), 0) for m in board.legal_moves], default=0)
+# ---------- COLONNA DATI ----------
+with col2:
+    st.subheader("Dati dell'agente")
 
-    Q[(state, move.uci())] = old_q + alpha * (reward + gamma * future_q - old_q)
+    if st.session_state.rewards:
+        fig, ax = plt.subplots()
+        ax.plot(st.session_state.rewards)
+        ax.set_title("Ricompense nel tempo")
+        ax.set_ylabel("Reward")
+        ax.set_xlabel("Mossa")
+        st.pyplot(fig)
 
-    st.write(f"**Mossa scelta:** {move}")
-    st.write(f"**Ricompensa:** {reward:.2f}")
-    st.write(f"**Q aggiornato:** {Q[(state, move.uci())]:.2f}")
+# ---------- TURNO AGENTE ----------
+if not st.session_state.board.is_game_over():
+    if st.session_state.board.turn:  # Bianco = agente
+        st.info("Turno dell'agente (Bianco)")
+        if st.button("L'agente fa una mossa"):
+            board = st.session_state.board
+            state = get_state(board)
+            legal_moves = list(board.legal_moves)
+            move = choose_action(state, legal_moves)
 
-# Scacchiera
-st.image(chess.svg.board(board=board), use_container_width=True)
+            board.push(move)
+            reward = get_reward(board)
+            st.session_state.rewards.append(reward)
 
-# Grafico ricompense
-if reward_history:
-    fig, ax = plt.subplots()
-    ax.plot(reward_history)
-    ax.set_title("Ricompense nel tempo")
-    ax.set_ylabel("Reward")
-    ax.set_xlabel("Step")
-    st.pyplot(fig)
+            next_state = get_state(board)
+            old_q = st.session_state.Q.get((state, move.uci()), 0)
+            future_q = max(
+                [st.session_state.Q.get((next_state, m.uci()), 0)
+                 for m in board.legal_moves],
+                default=0
+            )
+
+            st.session_state.Q[(state, move.uci())] = (
+                old_q + alpha * (reward + gamma * future_q - old_q)
+            )
+
+            st.success(f"Mossa agente: {move} | Reward: {reward:.2f}")
+
+    # ---------- TURNO UMANO ----------
+    else:
+        st.info("Tocca a te (Nero)")
+        moves = list(st.session_state.board.legal_moves)
+        move_strs = [m.uci() for m in moves]
+
+        user_move = st.selectbox("Scegli la tua mossa", move_strs)
+
+        if st.button("Gioca la mossa"):
+            st.session_state.board.push(chess.Move.from_uci(user_move))
+            st.experimental_rerun()
+
+else:
+    st.success("Partita terminata 🎉")
+    st.write(st.session_state.board.result())
+
+# ---------- RESET ----------
+if st.sidebar.button("Reset partita"):
+    st.session_state.board = chess.Board()
+    st.session_state.rewards = []
