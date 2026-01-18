@@ -2,6 +2,7 @@ import streamlit as st
 import chess
 import chess.svg
 import matplotlib.pyplot as plt
+import time
 
 st.set_page_config(layout="wide")
 
@@ -150,12 +151,24 @@ with col_board:
 
 with col_controls:
     st.subheader("Controlli")
+
     if not st.session_state.board.is_game_over():
         if st.button("▶ Prossimo passo", type="primary", use_container_width=True):
             step_game()
             st.rerun()
+
+        if not st.session_state.autoplay:
+            if st.button("⏩ Auto play", use_container_width=True):
+                st.session_state.autoplay = True
+                st.rerun()
+        else:
+            if st.button("⏸️ Stop auto play", use_container_width=True):
+                st.session_state.autoplay = False
+                st.rerun()
     else:
         st.success("Partita terminata")
+        st.session_state.autoplay = False
+
 
 with col_data:
     st.subheader("Reward")
@@ -166,6 +179,13 @@ with col_data:
     ax.set_ylabel("Reward cumulativa")
     st.pyplot(fig)
     st.info(st.session_state.labels[-1])
+
+
+# ---------- AUTO PLAY LOOP ----------
+if st.session_state.autoplay and not st.session_state.board.is_game_over():
+    time.sleep(2)
+    step_game()
+    st.rerun()
 
 # ----------------- SIDEBAR -----------------
 st.sidebar.subheader("Scenari")
