@@ -26,12 +26,19 @@ SCRIPT_A = [
 SCRIPT_B = [
     "e2e4", "e7e5",
     "g1f3", "b8c6",
-    "f1c4", "f8c5",
+    "f1b5", "a7a6",
+    "b5a4", "b7b5",
+    "a4b3", "c8b4",
     "c2c3", "g8f6",
-    "d2d4", "e5d4",
-    "c3d4", "c5b4",
-    "b1c3", "f6e4",
-    "c4f7"   # scacco matto del bianco
+    "c3b4", "b4c6",
+    "d2d4", "c6e5",
+    "e1g1", "d8f6",
+    "d1e1", "e5d3",
+    "e1e4", "f8e7",
+    "e4a8", "f6d8",
+    "f3d4", "c6d4",
+    "a8f3", "g7g5",
+    "f3f7"  # ♕ SCACCO MATTO DEL BIANCO
 ]
 
 
@@ -48,14 +55,40 @@ if "labels" not in st.session_state:
     st.session_state.labels = ["Inizio"]
 
 # ----------------- REWARD -----------------
-def compute_reward(board, scenario):
+def compute_reward(prev_board, board, scenario):
+    # scacco matto
     if board.is_checkmate():
-        return (120, "👑 SCACCO MATTO — Policy ottimale") if scenario == "B" else (-120, "💀 SCACCO MATTO — Policy pessima")
+        if scenario == "B":
+            return 100, "👑 Scacco matto — policy convergente"
+        else:
+            return -100, "💀 Scacco matto subito — policy fallimentare"
 
+    reward = 0
+    explanation = []
+
+    # catture
+    for sq in chess.SQUARES:
+        before = prev_board.piece_at(sq)
+        after = board.piece_at(sq)
+        if before and not after:
+            val = PIECE_VALUE.get(before.piece_type, 0)
+            if before.color == chess.BLACK:
+                reward += val
+                explanation.append(f"➕ catturato {before.symbol()}")
+            else:
+                reward -= val
+                explanation.append(f"➖ perso {before.symbol()}")
+
+    # shaping didattico
     if scenario == "A":
-        return -5, "❌ Bad move (policy non addestrata)"
+        reward -= 1
+        explanation.append("❌ mossa non strategica")
+    else:
+        reward += 1
+        explanation.append("✅ mossa coerente")
 
-    return 4, "✅ Good move (policy addestrata)"
+    return reward, " | ".join(explanation)
+
 
 # ----------------- STEP -----------------
 def step_game():
