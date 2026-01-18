@@ -92,15 +92,39 @@ def compute_reward(prev_board, board, scenario):
 
 # ----------------- STEP -----------------
 def step_game():
+    if st.session_state.board.is_game_over():
+        return
+
     script = SCRIPT_A if st.session_state.scenario == "A" else SCRIPT_B
-    if st.session_state.step < len(script):
-        move = chess.Move.from_uci(script[st.session_state.step])
-        if move in st.session_state.board.legal_moves:
-            st.session_state.board.push(move)
-            r, label = compute_reward(st.session_state.board, st.session_state.scenario)
-            st.session_state.rewards.append(st.session_state.rewards[-1] + r)
-            st.session_state.labels.append(label)
-            st.session_state.step += 1
+    idx = st.session_state.step
+
+    if idx >= len(script):
+        return
+
+    move_uci = script[idx]
+    move = chess.Move.from_uci(move_uci)
+
+    if move not in st.session_state.board.legal_moves:
+        st.error(f"Mossa illegale: {move_uci}")
+        return
+
+    # ⬇️ SALVIAMO LO STATO PRECEDENTE
+    prev_board = st.session_state.board.copy()
+
+    # ⬇️ APPLICHIAMO LA MOSSA
+    st.session_state.board.push(move)
+
+    # ⬇️ ORA LA FIRMA È CORRETTA
+    r, label = compute_reward(
+        prev_board,
+        st.session_state.board,
+        st.session_state.scenario
+    )
+
+    st.session_state.rewards.append(st.session_state.rewards[-1] + r)
+    st.session_state.labels.append(label)
+    st.session_state.step += 1
+
 
 # ----------------- UI -----------------
 st.title("♟️ Reinforcement Learning – Demo Didattica")
