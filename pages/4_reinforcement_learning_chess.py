@@ -7,13 +7,20 @@ st.set_page_config(layout="wide")
 
 # ----------------- SCRIPT -----------------
 SCRIPT_A = [
-    "f2f3", "e7e5",
-    "g2g4", "b8c6",
-    "h2h4", "f8c5",
-    "f3f4", "d8e7",
-    "g1f3", "e5f4",
-    "f3h2", "c5g1",
-    "h2g4", "e7e3"   # scacco matto finale
+    "d2d4", "g8f6",
+    "f2f4", "d7d6",
+    "g1f3", "c7c5",
+    "f3g5", "h7h6",
+    "b1c3", "h6g5",
+    "c3d5", "f6d5",
+    "c1e3", "d5e3",
+    "d4c5", "e3d1",
+    "b2b4", "d1e3",
+    "c5d6", "d8d6",
+    "c2c4", "e3c2",
+    "e1f2", "d6d4",
+    "f2f3", "d4f4"
+    # scacco matto finale
 ]
 
 SCRIPT_B = [
