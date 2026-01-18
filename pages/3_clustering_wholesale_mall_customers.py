@@ -8,23 +8,23 @@ from sklearn.cluster import KMeans
 
 import plotly.express as px
 
-# -----------------------------
+# =====================================================
 # CONFIG
-# -----------------------------
+# =====================================================
 st.set_page_config(
-    page_title="Clustering & PCA Demo",
+    page_title="Clustering & PCA – Live Demo",
     layout="wide"
 )
 
-st.title("🔍 Clustering e Riduzione Dimensionale")
+st.title("🧠 Clustering e Riduzione Dimensionale")
 st.markdown("""
-Questa demo mostra come un algoritmo **ragiona nello spazio multidimensionale**
-e come possiamo **visualizzarlo** con tecniche di riduzione dimensionale.
+Questa demo mostra **come un algoritmo ragiona nello spazio multidimensionale**
+e come possiamo **renderlo visibile**.
 """)
 
-# -----------------------------
+# =====================================================
 # LOAD DATA
-# -----------------------------
+# =====================================================
 @st.cache_data
 def load_data():
     url = "https://archive.ics.uci.edu/ml/machine-learning-databases/00292/Wholesale%20customers%20data.csv"
@@ -33,150 +33,144 @@ def load_data():
 df = load_data()
 
 features = [
-    "Fresh", "Milk", "Grocery",
-    "Frozen", "Detergents_Paper", "Delicassen"
+    "Fresh",
+    "Milk",
+    "Grocery",
+    "Frozen",
+    "Detergents_Paper",
+    "Delicassen"
 ]
 
 X = df[features]
 
-# -----------------------------
+# =====================================================
+# SIDEBAR – PARAMETRI
+# =====================================================
+st.sidebar.header("⚙️ Parametri")
+
+k = st.sidebar.slider(
+    "Numero di cluster (KMeans)",
+    min_value=2,
+    max_value=6,
+    value=3
+)
+
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 🧠 Naming semantico PCA")
+
+pca1_name = st.sidebar.text_input(
+    "Nome PCA 1",
+    "Orientamento alla Distribuzione di Massa"
+)
+
+pca2_name = st.sidebar.text_input(
+    "Nome PCA 2",
+    "Orientamento a Fresco e Specialità"
+)
+
+pca3_name = st.sidebar.text_input(
+    "Nome PCA 3",
+    "Comportamento di Nicchia"
+)
+
+# =====================================================
+# ACTION BUTTON
+# =====================================================
+st.markdown("## ▶️ Avvio Analisi")
+
+start = st.button("🚀 Avvia calcolo")
+
+if not start:
+    st.info("""
+    Premi **Avvia calcolo** per:
+    - preprocessare i dati
+    - calcolare i cluster
+    - ridurre le dimensioni con PCA
+    - visualizzare lo spazio dell'algoritmo
+    """)
+    st.stop()
+
+# =====================================================
 # PREPROCESSING
-# -----------------------------
-X_log = np.log1p(X)  # log scaling per effetto visivo + ML corretto
-X_scaled = StandardScaler().fit_transform(X_log)
+# =====================================================
+with st.spinner("🔄 Preprocessamento dei dati..."):
+    X_log = np.log1p(X)
+    X_scaled = StandardScaler().fit_transform(X_log)
 
-# -----------------------------
+# =====================================================
 # CLUSTERING
-# -----------------------------
-k = st.sidebar.slider("Numero di cluster (KMeans)", 2, 6, 3)
+# =====================================================
+with st.spinner("🧩 Calcolo dei cluster..."):
+    kmeans = KMeans(n_clusters=k, random_state=42)
+    clusters = kmeans.fit_predict(X_scaled)
+    df["Cluster"] = clusters.astype(str)
 
-kmeans = KMeans(n_clusters=k, random_state=42)
-clusters = kmeans.fit_predict(X_scaled)
-
-df["Cluster"] = clusters.astype(str)
-
-# ============================================================
-# 1️⃣ 2D LOG SPACE
-# ============================================================
-st.header("1️⃣ Spazio reale (2D – scala log)")
-
-col1, col2 = st.columns(2)
-x_feat = col1.selectbox("Asse X", features, index=0)
-y_feat = col2.selectbox("Asse Y", features, index=2)
-
-fig_2d_log = px.scatter(
-    df,
-    x=np.log1p(df[x_feat]),
-    y=np.log1p(df[y_feat]),
-    color="Cluster",
-    title=f"{x_feat} vs {y_feat} (log scale)",
-    labels={"x": x_feat, "y": y_feat}
-)
-
-st.plotly_chart(fig_2d_log, use_container_width=True)
-
-st.info("""
-Ogni punto è un cliente.  
-Gli assi sono **dimensioni reali**, ma trasformate per rendere visibile la struttura.
-""")
-
-# ============================================================
-# 2️⃣ 3D LOG SPACE
-# ============================================================
-st.header("2️⃣ Spazio reale (3D – scala log)")
-
-x3 = st.selectbox("Asse X (3D)", features, index=0)
-y3 = st.selectbox("Asse Y (3D)", features, index=1)
-z3 = st.selectbox("Asse Z (3D)", features, index=2)
-
-fig_3d_log = px.scatter_3d(
-    df,
-    x=np.log1p(df[x3]),
-    y=np.log1p(df[y3]),
-    z=np.log1p(df[z3]),
-    color="Cluster",
-    title="Spazio tridimensionale reale (log)",
-)
-
-st.plotly_chart(fig_3d_log, use_container_width=True)
-
-st.warning("""
-Già con 3 dimensioni iniziamo a **perdere intuizione visiva**.  
-In realtà l'algoritmo lavora in **6 dimensioni contemporaneamente**.
-""")
-
-# ============================================================
+# =====================================================
 # PCA
-# ============================================================
-pca = PCA(n_components=3)
-X_pca = pca.fit_transform(X_scaled)
+# =====================================================
+with st.spinner("📉 Riduzione dimensionale (PCA)..."):
+    pca = PCA(n_components=3)
+    X_pca = pca.fit_transform(X_scaled)
 
-df["PCA1"] = X_pca[:, 0]
-df["PCA2"] = X_pca[:, 1]
-df["PCA3"] = X_pca[:, 2]
+    df["PCA1"] = X_pca[:, 0]
+    df["PCA2"] = X_pca[:, 1]
+    df["PCA3"] = X_pca[:, 2]
 
-# ============================================================
-# 3️⃣ PCA 2D
-# ============================================================
-st.header("3️⃣ Riduzione dimensionale (PCA 2D)")
+    loadings = pd.DataFrame(
+        pca.components_.T,
+        columns=["PCA1", "PCA2", "PCA3"],
+        index=features
+    )
+
+# =====================================================
+# PCA 2D – TABELLA + GRAFICO
+# =====================================================
+st.header("📊 PCA 2D – Interpretazione delle Componenti")
+
+st.subheader("🔎 Composizione delle Componenti (PCA 1 & 2)")
+st.dataframe(
+    loadings[["PCA1", "PCA2"]]
+    .rename(columns={
+        "PCA1": pca1_name,
+        "PCA2": pca2_name
+    })
+    .style.format("{:.3f}")
+)
 
 fig_pca_2d = px.scatter(
     df,
     x="PCA1",
     y="PCA2",
     color="Cluster",
-    title="PCA – 2 dimensioni latenti"
+    labels={
+        "PCA1": pca1_name,
+        "PCA2": pca2_name
+    },
+    title="Spazio latente bidimensionale (PCA)"
 )
 
 st.plotly_chart(fig_pca_2d, use_container_width=True)
 
-st.success("""
-Qui gli assi **non sono variabili reali**  
-ma **combinazioni intelligenti** che spiegano il comportamento dei clienti.
+st.info("""
+Gli assi **non sono variabili reali**  
+ma **combinazioni intelligenti** create dall’algoritmo.
 """)
 
+# =====================================================
+# PCA 3D – TABELLA + GRAFICO
+# =====================================================
+st.header("📐 PCA 3D – Multidimensionalità")
 
-# -----------------------------
-# PCA + LOADINGS
-# -----------------------------
-pca = PCA(n_components=3)
-X_pca = pca.fit_transform(X_scaled)
-
-loadings = pd.DataFrame(
-    pca.components_.T,
-    columns=["PCA1", "PCA2", "PCA3"],
-    index=features
+st.subheader("🔎 Composizione delle Componenti (PCA 1, 2 e 3)")
+st.dataframe(
+    loadings
+    .rename(columns={
+        "PCA1": pca1_name,
+        "PCA2": pca2_name,
+        "PCA3": pca3_name
+    })
+    .style.format("{:.3f}")
 )
-
-df["PCA1"] = X_pca[:, 0]
-df["PCA2"] = X_pca[:, 1]
-df["PCA3"] = X_pca[:, 2]
-
-st.sidebar.markdown("### 🧠 Significato delle Componenti PCA")
-
-pca1_name = st.sidebar.text_input(
-    "Nome PCA1",
-    "Orientamento alla Distribuzione di Massa"
-)
-
-pca2_name = st.sidebar.text_input(
-    "Nome PCA2",
-    "Orientamento a Fresco e Specialità"
-)
-
-pca3_name = st.sidebar.text_input(
-    "Nome PCA3",
-    "Comportamento di Nicchia"
-)
-
-with st.expander("🔎 Composizione delle Componenti (PCA Loadings)"):
-    st.dataframe(loadings.style.format("{:.2f}"))
-
-
-# ============================================================
-# 4️⃣ PCA 3D
-# ============================================================
-st.header("4️⃣ PCA 3D – Spazio latente")
 
 fig_pca_3d = px.scatter_3d(
     df,
@@ -184,22 +178,28 @@ fig_pca_3d = px.scatter_3d(
     y="PCA2",
     z="PCA3",
     color="Cluster",
-    title="PCA – Spazio tridimensionale latente"
+    labels={
+        "PCA1": pca1_name,
+        "PCA2": pca2_name,
+        "PCA3": pca3_name
+    },
+    title="Spazio latente tridimensionale (PCA)"
 )
 
 st.plotly_chart(fig_pca_3d, use_container_width=True)
 
-st.info("""
-Questo è il massimo che possiamo **vedere**.  
-L'algoritmo però **non ha limiti di dimensione**.
+st.warning("""
+Questo è il **limite della visualizzazione umana**.  
+L’algoritmo però lavora senza problemi in **molte più dimensioni**.
 """)
 
-# ============================================================
-# FOOTER
-# ============================================================
+# =====================================================
+# FOOTER – MESSAGGIO CHIAVE
+# =====================================================
 st.markdown("---")
 st.markdown("""
-**Messaggio chiave:**  
-> L'intelligenza artificiale non semplifica i dati.  
-> Li **riorganizza** per renderli comprensibili.
+### 🧠 Messaggio chiave
+
+> L’intelligenza artificiale non semplifica i dati.  
+> Li **riorganizza** per trovare strutture che noi non vediamo.
 """)
