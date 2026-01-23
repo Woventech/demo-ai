@@ -102,7 +102,7 @@ df["Cluster"] = kmeans.fit_predict(X_scaled).astype(str)
 # =====================================================
 st.header("👀 ATTO 1 — Come vediamo noi i dati (2D)")
 
-x2 = "Milk"
+x2 = "Detergents_Paper"
 y2 = "Grocery"
 
 fig_2d_human = px.scatter(
